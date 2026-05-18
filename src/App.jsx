@@ -222,36 +222,97 @@ function Conectar({onEntrar}) {
   const [load,setLoad]=useState(false);
   const [err,setErr]=useState("");
 
+  // ── QR Code flow ──────────────────────────────────────────────────
+  const [passo,setPasso]=useState("credenciais"); // "credenciais" | "qrcode"
+  const [qrImg,setQrImg]=useState("");
+  const [qrStatus,setQrStatus]=useState("Aguardando leitura...");
+  const pollRef=useRef(null);
+  const tentativas=useRef(0);
+
+  useEffect(()=>()=>{clearInterval(pollRef.current);},[]);
+
   const trocarProvider=(p)=>{
     setProvider(p);
     setApiKey(localStorage.getItem(`${p}_key`)||"");
     localStorage.setItem("ai_provider",p);
   };
 
-  const salvarKey=()=>{
+  const salvarCredenciais=(id,t)=>{
     localStorage.setItem("ai_provider",provider);
     if(apiKey.trim()) localStorage.setItem(`${provider}_key`,apiKey.trim());
+    localStorage.setItem("zapi_instance",id);
+    localStorage.setItem("zapi_token",t);
   };
 
   const entrarDemo=()=>{
-    salvarKey();
+    localStorage.setItem("ai_provider",provider);
+    if(apiKey.trim()) localStorage.setItem(`${provider}_key`,apiKey.trim());
     onEntrar("demo",null,null);
   };
 
-  const real=async()=>{
-    if(!instanceId||!tok){setErr("Preencha o Instance ID e o Token da Z-API");return;}
-    salvarKey();
+  const atualizarQR=async(id,t)=>{
+    try{
+      const qr=await zapiGet(id,t,"qr-code");
+      if(qr?.value) setQrImg(qr.value);
+    }catch{}
+  };
+
+  const iniciarPoll=(id,t)=>{
+    clearInterval(pollRef.current);
+    tentativas.current=0;
+    pollRef.current=setInterval(async()=>{
+      try{
+        const st=await zapiGet(id,t,"status");
+        if(st?.connected===true||st?.value==="CONNECTED"){
+          clearInterval(pollRef.current);
+          setQrStatus("✅ Conectado! Carregando conversas...");
+          salvarCredenciais(id,t);
+          setTimeout(()=>onEntrar("real",id,t),800);
+        } else {
+          tentativas.current++;
+          if(tentativas.current<=4) atualizarQR(id,t);
+          else setQrStatus("⏱ QR Code expirou — clique em Atualizar");
+        }
+      }catch{}
+    },12000);
+  };
+
+  const conectarWhatsApp=async()=>{
+    const id=instanceId.trim(),t=tok.trim();
+    if(!id||!t){setErr("Preencha o Instance ID e o Token");return;}
     setLoad(true);setErr("");
     try{
-      const id=instanceId.trim(),t=tok.trim();
+      // Verifica se já está conectado
       const st=await zapiGet(id,t,"status");
-      if(st?.value==="DISCONNECTED"||st?.connected===false){
-        throw new Error("WhatsApp desconectado — escaneie o QR Code no painel Z-API");
+      if(st?.connected===true||st?.value==="CONNECTED"){
+        salvarCredenciais(id,t);
+        onEntrar("real",id,t);
+        return;
       }
-      localStorage.setItem("zapi_instance",id);
-      localStorage.setItem("zapi_token",t);
-      onEntrar("real",id,t);
-    }catch(e){setErr(String(e.message));setLoad(false);}
+      // Busca o QR Code
+      const qr=await zapiGet(id,t,"qr-code");
+      if(!qr?.value) throw new Error("Não foi possível gerar o QR Code. Verifique Instance ID e Token.");
+      setQrImg(qr.value);
+      setPasso("qrcode");
+      setQrStatus("Aguardando leitura...");
+      iniciarPoll(id,t);
+    }catch(e){setErr(String(e.message));}
+    setLoad(false);
+  };
+
+  const voltarCredenciais=()=>{
+    clearInterval(pollRef.current);
+    setPasso("credenciais");
+    setQrImg("");
+    setErr("");
+  };
+
+  const atualizarQRManual=()=>{
+    const id=instanceId.trim(),t=tok.trim();
+    tentativas.current=0;
+    setQrStatus("Aguardando leitura...");
+    atualizarQR(id,t);
+    iniciarPoll(id,t);
   };
 
   const bp=useBreakpoint();
@@ -366,75 +427,118 @@ function Conectar({onEntrar}) {
           <div style={{fontSize:13,color:sub,lineHeight:1.5}}>Escolha seu provedor de IA e acesse a plataforma</div>
         </div>
 
-        {/* ── Seletor de provedor ─── */}
-        <div style={{marginBottom:22}}>
-          <div style={{fontSize:9,color:sub,marginBottom:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em"}}>Provedor de IA</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:14}}>
-            {Object.entries(PROVIDERS).map(([id,p])=>(
-              <button key={id} onClick={()=>trocarProvider(id)}
-                style={{padding:"13px 12px",borderRadius:13,border:`1.5px solid ${provider===id?p.cor+"80":brd}`,background:provider===id?`${p.cor}18`:s3,color:provider===id?p.cor:sub,display:"flex",alignItems:"center",gap:11,transition:"all .18s",boxShadow:provider===id?`0 0 20px ${p.cor}1a`:"none",textAlign:"left"}}>
-                <span style={{fontSize:22,lineHeight:1,flexShrink:0}}>{p.icon}</span>
-                <div>
-                  <div style={{fontSize:13,fontWeight:provider===id?700:500,lineHeight:1.2}}>{p.name}</div>
-                  <div style={{fontSize:9,color:sub,marginTop:2,lineHeight:1}}>{p.modelo}</div>
+        {passo==="qrcode"?(
+          /* ══ PASSO 2: QR CODE ══════════════════════════════════════════ */
+          <div className="fadeup">
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+              <button onClick={voltarCredenciais} style={{width:32,height:32,borderRadius:8,background:s3,border:`1px solid ${brd}`,color:sub,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:txt}}>Escaneie o QR Code</div>
+                <div style={{fontSize:10,color:sub}}>Abra o WhatsApp → Dispositivos conectados → Conectar</div>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+              {qrImg?(
+                <div style={{padding:10,background:"#fff",borderRadius:14,boxShadow:`0 0 40px ${wa}22`}}>
+                  <img src={qrImg} alt="QR Code WhatsApp" style={{width:200,height:200,display:"block",borderRadius:6}}/>
                 </div>
+              ):(
+                <div style={{width:220,height:220,borderRadius:14,background:s3,border:`1px solid ${brd}`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10}}>
+                  <Sp n={28} c={wa}/>
+                  <span style={{fontSize:11,color:sub}}>Gerando QR Code...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:12,color:qrStatus.startsWith("✅")?green:qrStatus.startsWith("⏱")?warn:sub,fontWeight:600,marginBottom:4}}>{qrStatus}</div>
+              {!qrStatus.startsWith("✅")&&<div style={{fontSize:10,color:`${sub}80`}}>O QR Code atualiza automaticamente a cada 12 segundos</div>}
+            </div>
+
+            {/* Botões */}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {qrStatus.startsWith("⏱")&&(
+                <button onClick={atualizarQRManual}
+                  style={{width:"100%",padding:"12px",background:`${wa}18`,border:`1px solid ${wa}50`,borderRadius:10,color:wa,fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                  🔄 Atualizar QR Code
+                </button>
+              )}
+              <button onClick={entrarDemo}
+                style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${brd}`,borderRadius:10,color:sub,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                📱 Entrar com demonstração
               </button>
-            ))}
+            </div>
           </div>
+        ):(
+          /* ══ PASSO 1: CREDENCIAIS ══════════════════════════════════════ */
+          <>
+            {/* ── Seletor de provedor ─── */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:9,color:sub,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em"}}>Provedor de IA</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:13}}>
+                {Object.entries(PROVIDERS).map(([id,p])=>(
+                  <button key={id} onClick={()=>trocarProvider(id)}
+                    style={{padding:"11px 12px",borderRadius:13,border:`1.5px solid ${provider===id?p.cor+"80":brd}`,background:provider===id?`${p.cor}18`:s3,color:provider===id?p.cor:sub,display:"flex",alignItems:"center",gap:11,transition:"all .18s",boxShadow:provider===id?`0 0 20px ${p.cor}1a`:"none",textAlign:"left"}}>
+                    <span style={{fontSize:20,lineHeight:1,flexShrink:0}}>{p.icon}</span>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:provider===id?700:500,lineHeight:1.2}}>{p.name}</div>
+                      <div style={{fontSize:9,color:sub,marginTop:2,lineHeight:1}}>{p.modelo}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div style={{position:"relative",marginBottom:6}}>
+                <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={pInfo.hint}
+                  style={{...inp,border:`1.5px solid ${apiKey?green+"55":pInfo.cor+"40"}`,paddingRight:40}}/>
+                {apiKey&&<span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",color:green,fontSize:16,fontWeight:700,pointerEvents:"none"}}>✓</span>}
+              </div>
+              <div style={{fontSize:10,color:apiKey?green:sub,textAlign:"center"}}>
+                {apiKey?`✓ Chave ${pInfo.name} configurada`:`Cole sua chave ${pInfo.name} para habilitar análise IA`}
+              </div>
+            </div>
 
-          <div style={{position:"relative",marginBottom:8}}>
-            <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={pInfo.hint}
-              style={{...inp,border:`1.5px solid ${apiKey?green+"55":pInfo.cor+"40"}`,paddingRight:40}}/>
-            {apiKey&&<span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",color:green,fontSize:16,fontWeight:700,pointerEvents:"none"}}>✓</span>}
-          </div>
-          <div style={{fontSize:10,color:apiKey?green:sub,textAlign:"center",letterSpacing:".02em"}}>
-            {apiKey?`✓ Chave ${pInfo.name} configurada — pronta para usar`:`Cole sua chave ${pInfo.name} para habilitar análise IA`}
-          </div>
-        </div>
+            {/* ── Entrar com demo ─── */}
+            <button onClick={entrarDemo}
+              style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,#1db954,${wa})`,border:"none",borderRadius:13,color:"#fff",fontWeight:800,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:`0 8px 32px ${wa}28`,marginBottom:7,letterSpacing:".02em"}}>
+              <span style={{fontSize:19}}>📱</span>Entrar com demonstração
+            </button>
+            <div style={{fontSize:10,color:sub,textAlign:"center",marginBottom:18,letterSpacing:".03em"}}>5 conversas · análise IA real · zero configuração</div>
 
-        {/* ── Entrar com demo ─── */}
-        <button onClick={entrarDemo}
-          style={{width:"100%",padding:"15px",background:`linear-gradient(135deg,#1db954,${wa})`,border:"none",borderRadius:14,color:"#fff",fontWeight:800,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:`0 8px 32px ${wa}28`,marginBottom:8,letterSpacing:".02em"}}>
-          <span style={{fontSize:20}}>📱</span>Entrar com demonstração
-        </button>
-        <div style={{fontSize:10,color:sub,textAlign:"center",marginBottom:22,letterSpacing:".03em"}}>5 conversas · análise IA real · zero configuração</div>
+            {/* divisor */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,transparent,${brd})`}}/>
+              <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".12em",flexShrink:0}}>ou conecte seu WhatsApp</span>
+              <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,${brd},transparent)`}}/>
+            </div>
 
-        {/* divisor */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-          <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,transparent,${brd})`}}/>
-          <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-            <span style={{fontSize:12}}>📲</span>
-            <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".12em"}}>conecte seu WhatsApp via Z-API</span>
-          </div>
-          <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,${brd},transparent)`}}/>
-        </div>
+            {/* ── Z-API credenciais ─── */}
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Instance ID <span style={{color:`${sub}60`,fontWeight:400,textTransform:"none"}}>(Z-API)</span></div>
+                <input value={instanceId} onChange={e=>setInstanceId(e.target.value)}
+                  placeholder="3F353000252CF1C7F7FBEA2E..."
+                  style={{...inp,border:`1px solid ${instanceId?green+"40":brd}`,fontFamily:"monospace",fontSize:12}}/>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Token <span style={{color:`${sub}60`,fontWeight:400,textTransform:"none"}}>(Z-API)</span></div>
+                <input type="password" value={tok} onChange={e=>setTok(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&conectarWhatsApp()}
+                  placeholder="8E69E627F75B5B819D096A02"
+                  style={{...inp,border:`1px solid ${tok?green+"40":brd}`,fontFamily:"monospace",fontSize:12}}/>
+              </div>
+            </div>
 
-        {/* ── Z-API ─── */}
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
-          <div>
-            <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Instance ID</div>
-            <input value={instanceId} onChange={e=>setInstanceId(e.target.value)}
-              placeholder="3F353000252CF1C7F7FBEA2E882AECCA"
-              style={{...inp,border:`1px solid ${instanceId?green+"40":brd}`,fontFamily:"monospace",fontSize:13}}/>
-          </div>
-          <div>
-            <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Token</div>
-            <input type="password" value={tok} onChange={e=>setTok(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&real()}
-              placeholder="8E69E627F75B5B819D096A02"
-              style={{...inp,border:`1px solid ${tok?green+"40":brd}`,fontFamily:"monospace",fontSize:13}}/>
-          </div>
-        </div>
+            {err&&<div style={{padding:"9px 13px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:12,color:danger,marginBottom:10,lineHeight:1.5}}>⚠️ {err}</div>}
 
-        <div style={{fontSize:10,color:sub,lineHeight:1.6,marginBottom:10,padding:"8px 11px",background:s3,borderRadius:8}}>
-          💡 Encontre esses dados em <strong style={{color:gold}}>app.z-api.io</strong> → sua instância → <em>Credenciais</em>
-        </div>
-
-        {err&&<div style={{padding:"9px 13px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:12,color:danger,marginBottom:10,lineHeight:1.5}}>⚠️ {err}</div>}
-        <button onClick={real} disabled={load}
-          style={{width:"100%",padding:"14px",background:load?s3:`linear-gradient(135deg,#075e54,#128c7e)`,border:`1.5px solid ${load?brd:"#25D36660"}`,borderRadius:11,color:load?sub:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s",boxShadow:load?"none":`0 4px 20px ${wa}18`}}>
-          {load?<><Sp c={wa}/>Verificando conexão...</>:<><span style={{fontSize:18}}>📲</span>Conectar WhatsApp</>}
-        </button>
+            <button onClick={conectarWhatsApp} disabled={load}
+              style={{width:"100%",padding:"14px",background:load?s3:`linear-gradient(135deg,#075e54,#128c7e)`,border:`1.5px solid ${load?brd:wa+"60"}`,borderRadius:11,color:load?sub:"#fff",fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s",boxShadow:load?"none":`0 4px 20px ${wa}18`}}>
+              {load?<><Sp c={wa}/>Verificando...</>:<><span style={{fontSize:18}}>📲</span>Conectar e ver QR Code</>}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
