@@ -29,13 +29,19 @@ const DEMO=[
    msgs:[{id:1,dir:"in",de:"Ana",txt:"Interesse no apt 3 quartos com suíte no Brooklin.",h:"08:10"},{id:2,dir:"out",de:"Corretor",txt:"Boa tarde, Ana! Já conhece o empreendimento?",h:"08:12"},{id:3,dir:"in",de:"Ana",txt:"Vi pelo anúncio. Orçamento até 950k.",h:"08:13"},{id:4,dir:"in",de:"Ana",txt:"Quando posso agendar visita? Prefiro sábado de manhã.",h:"08:15"}]},
 ];
 
-// ── CLAUDE AI ─────────────────────────────────────────────────────────────────
-async function chamarClaude(nomeContato, mensagens) {
-  const apiKey = localStorage.getItem("claude_key") || "";
-  if (!apiKey) return { erro: "Chave da API Claude não configurada. Cole sua chave sk-ant-... na tela inicial." };
+// ── PROVEDORES DE IA ──────────────────────────────────────────────────────────
+const PROVIDERS = {
+  claude: { name:"Claude",  icon:"🧠", cor:"#c8a235", hint:"sk-ant-api03-...",  modelo:"claude-sonnet-4-6" },
+  openai: { name:"ChatGPT", icon:"🤖", cor:"#10a37f", hint:"sk-proj-...",       modelo:"gpt-4o" },
+  gemini: { name:"Gemini",  icon:"✨", cor:"#4285f4", hint:"AIzaSy...",          modelo:"gemini-2.0-flash" },
+  grok:   { name:"Grok",    icon:"⚡", cor:"#9333ea", hint:"xai-...",            modelo:"grok-3" },
+};
 
+const SYSTEM_PROMPT = "Você é um coach de vendas imobiliárias expert com 20 anos de experiência. Analise conversas em profundidade e gere insights acionáveis. Retorne APENAS JSON válido, sem texto adicional.";
+
+function buildUserPrompt(nomeContato, mensagens) {
   const conv = mensagens.map(m=>`${m.de}: ${m.txt}`).join("\n");
-  const prompt = `Analise a conversa com ${nomeContato} e retorne APENAS JSON válido:
+  return `Analise a conversa com ${nomeContato} e retorne APENAS JSON válido:
 {
   "crm": {
     "orcamento_max": null,
@@ -72,33 +78,102 @@ async function chamarClaude(nomeContato, mensagens) {
 
 Conversa:
 ${conv}`;
+}
+
+function parseJsonResposta(raw) {
+  const clean = raw.replace(/```json\n?|```/g,"").trim();
+  return JSON.parse(clean);
+}
+
+async function chamarClaude(nomeContato, mensagens) {
+  const provider = localStorage.getItem("ai_provider") || "claude";
+  const apiKey   = localStorage.getItem(`${provider}_key`) || "";
+  const pInfo    = PROVIDERS[provider];
+
+  if (!apiKey) return { erro: `Chave da API ${pInfo.name} não configurada. Cole sua chave na tela inicial.` };
+
+  const userPrompt = buildUserPrompt(nomeContato, mensagens);
+
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body:JSON.stringify({
-        model:"claude-sonnet-4-6",
-        max_tokens:1500,
-        system:"Você é um coach de vendas imobiliárias expert com 20 anos de experiência. Analise conversas em profundidade e gere insights acionáveis. Retorne APENAS JSON válido, sem texto adicional.",
-        messages:[{role:"user",content:prompt}]
-      })
-    });
-    if(!r.ok) {
-      const errBody = await r.json().catch(()=>({}));
-      return {erro:`API erro ${r.status}: ${errBody?.error?.message||r.statusText}`};
+    let raw = "";
+
+    // ── Claude (Anthropic) ──────────────────────────────────────────────────
+    if (provider === "claude") {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: pInfo.modelo,
+          max_tokens: 1500,
+          system: SYSTEM_PROMPT,
+          messages: [{ role:"user", content: userPrompt }]
+        })
+      });
+      if (!r.ok) { const e=await r.json().catch(()=>({})); return {erro:`Claude ${r.status}: ${e?.error?.message||r.statusText}`}; }
+      const d = await r.json();
+      raw = d.content?.find(b=>b.type==="text")?.text ?? "{}";
+
+    // ── OpenAI (ChatGPT) ────────────────────────────────────────────────────
+    } else if (provider === "openai") {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: pInfo.modelo,
+          max_tokens: 1500,
+          response_format: { type:"json_object" },
+          messages:[
+            { role:"system", content: SYSTEM_PROMPT },
+            { role:"user",   content: userPrompt }
+          ]
+        })
+      });
+      if (!r.ok) { const e=await r.json().catch(()=>({})); return {erro:`ChatGPT ${r.status}: ${e?.error?.message||r.statusText}`}; }
+      const d = await r.json();
+      raw = d.choices?.[0]?.message?.content ?? "{}";
+
+    // ── Gemini (Google) ─────────────────────────────────────────────────────
+    } else if (provider === "gemini") {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${pInfo.modelo}:generateContent?key=${apiKey}`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          systemInstruction:{ parts:[{ text: SYSTEM_PROMPT }] },
+          contents:[{ parts:[{ text: userPrompt }] }],
+          generationConfig:{ maxOutputTokens:1500, responseMimeType:"application/json" }
+        })
+      });
+      if (!r.ok) { const e=await r.json().catch(()=>({})); return {erro:`Gemini ${r.status}: ${e?.error?.message||r.statusText}`}; }
+      const d = await r.json();
+      raw = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+
+    // ── Grok (xAI) — compatível com OpenAI ─────────────────────────────────
+    } else if (provider === "grok") {
+      const r = await fetch("https://api.x.ai/v1/chat/completions", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: pInfo.modelo,
+          max_tokens: 1500,
+          messages:[
+            { role:"system", content: SYSTEM_PROMPT },
+            { role:"user",   content: userPrompt }
+          ]
+        })
+      });
+      if (!r.ok) { const e=await r.json().catch(()=>({})); return {erro:`Grok ${r.status}: ${e?.error?.message||r.statusText}`}; }
+      const d = await r.json();
+      raw = d.choices?.[0]?.message?.content ?? "{}";
     }
-    const d = await r.json();
-    if(d.error) return {erro:d.error.message};
-    const raw = d.content?.find(b=>b.type==="text")?.text??"{}";
-    const clean = raw.replace(/```json\n?|```/g,"").trim();
-    return JSON.parse(clean);
+
+    return parseJsonResposta(raw);
   } catch(e) {
-    return {erro:String(e)};
+    return { erro: String(e) };
   }
 }
 
@@ -127,12 +202,20 @@ function Conectar({onEntrar}) {
 
   const [url,setUrl]=useState("");
   const [tok,setTok]=useState("");
-  const [claudeKey,setClaudeKey]=useState(localStorage.getItem("claude_key")||"");
+  const [provider,setProvider]=useState(localStorage.getItem("ai_provider")||"claude");
+  const [apiKey,setApiKey]=useState(()=>localStorage.getItem(`${localStorage.getItem("ai_provider")||"claude"}_key`)||"");
   const [load,setLoad]=useState(false);
   const [err,setErr]=useState("");
 
+  const trocarProvider=(p)=>{
+    setProvider(p);
+    setApiKey(localStorage.getItem(`${p}_key`)||"");
+    localStorage.setItem("ai_provider",p);
+  };
+
   const salvarKey=()=>{
-    if(claudeKey.trim()) localStorage.setItem("claude_key",claudeKey.trim());
+    localStorage.setItem("ai_provider",provider);
+    if(apiKey.trim()) localStorage.setItem(`${provider}_key`,apiKey.trim());
   };
 
   const entrarDemo=()=>{
@@ -151,6 +234,7 @@ function Conectar({onEntrar}) {
   };
 
   const inp={width:"100%",background:s3,border:`1px solid ${brd}`,borderRadius:8,padding:"9px 12px",color:txt,fontSize:13};
+  const pInfo=PROVIDERS[provider];
 
   return(
     <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:bg}}>
@@ -162,19 +246,28 @@ function Conectar({onEntrar}) {
           <div style={{fontSize:11,color:sub,marginTop:3}}>WhatsApp · IA · Vendas Imobiliárias</div>
         </div>
 
-        {/* Bloco da chave Claude */}
-        <div style={{padding:"14px 28px 10px",borderBottom:`1px solid ${brd}`,background:`${gold}05`}}>
-          <label style={{fontSize:10,color:gold,display:"block",marginBottom:5,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>🤖 Chave API Claude (obrigatória para IA)</label>
+        {/* Seletor de provedor de IA */}
+        <div style={{padding:"14px 28px 12px",borderBottom:`1px solid ${brd}`,background:`${pInfo.cor}08`}}>
+          <div style={{fontSize:10,color:sub,marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Provedor de IA</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+            {Object.entries(PROVIDERS).map(([id,p])=>(
+              <button key={id} onClick={()=>trocarProvider(id)}
+                style={{padding:"8px 4px",borderRadius:9,border:`1px solid ${provider===id?p.cor:brd}`,background:provider===id?`${p.cor}18`:s3,color:provider===id?p.cor:sub,fontSize:11,fontWeight:provider===id?700:400,display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .15s"}}>
+                <span style={{fontSize:16}}>{p.icon}</span>
+                <span>{p.name}</span>
+              </button>
+            ))}
+          </div>
           <input
             type="password"
-            value={claudeKey}
-            onChange={e=>setClaudeKey(e.target.value)}
-            placeholder="sk-ant-api03-..."
-            style={{...inp,border:`1px solid ${claudeKey?"#22c55e40":gold+"40"}`,fontSize:12}}
+            value={apiKey}
+            onChange={e=>setApiKey(e.target.value)}
+            placeholder={pInfo.hint}
+            style={{...inp,border:`1px solid ${apiKey?"#22c55e40":pInfo.cor+"40"}`,fontSize:12}}
           />
-          {claudeKey
-            ? <div style={{fontSize:9,color:green,marginTop:4}}>✓ Chave salva — pronta para usar</div>
-            : <div style={{fontSize:9,color:warn,marginTop:4}}>⚠️ Sem chave, a análise IA não funcionará. Obtenha em console.anthropic.com</div>
+          {apiKey
+            ? <div style={{fontSize:9,color:green,marginTop:4}}>✓ Chave {pInfo.name} salva — pronta para usar</div>
+            : <div style={{fontSize:9,color:warn,marginTop:4}}>⚠️ Cole sua chave {pInfo.name} para habilitar a análise IA</div>
           }
         </div>
 
