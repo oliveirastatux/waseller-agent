@@ -185,16 +185,23 @@ async function chamarClaude(nomeContato, mensagens) {
   }
 }
 
-// ── PROXY WASELLER ────────────────────────────────────────────────────────────
-const PROXY="https://izpgtvqlliwbacncfaez.supabase.co/functions/v1/waseller-proxy";
-async function proxy(action, url, token, extra={}) {
-  const r = await fetch(`${PROXY}?action=${action}`,{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({wasellerUrl:url,wasellerToken:token,...extra})
+// ── Z-API ─────────────────────────────────────────────────────────────────────
+function zapiBase(instanceId, token) {
+  return `https://api.z-api.io/instances/${instanceId}/token/${token}`;
+}
+async function zapiGet(instanceId, token, endpoint, params={}) {
+  const qs=Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join("&");
+  const url=`${zapiBase(instanceId,token)}/${endpoint}${qs?"?"+qs:""}`;
+  const r=await fetch(url,{headers:{"Content-Type":"application/json"}});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e?.message||e?.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+async function zapiPost(instanceId, token, endpoint, body={}) {
+  const r=await fetch(`${zapiBase(instanceId,token)}/${endpoint}`,{
+    method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
   });
-  const d = await r.json();
-  if(!d.ok) throw new Error(d.error||"Erro");
-  return d.result;
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e?.message||e?.error||`HTTP ${r.status}`);}
+  return r.json();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -208,8 +215,8 @@ function Conectar({onEntrar}) {
     return()=>{try{document.head.removeChild(el)}catch{}};
   },[]);
 
-  const [url,setUrl]=useState("");
-  const [tok,setTok]=useState("");
+  const [instanceId,setInstanceId]=useState(()=>localStorage.getItem("zapi_instance")||"");
+  const [tok,setTok]=useState(()=>localStorage.getItem("zapi_token")||"");
   const [provider,setProvider]=useState(localStorage.getItem("ai_provider")||"claude");
   const [apiKey,setApiKey]=useState(()=>localStorage.getItem(`${localStorage.getItem("ai_provider")||"claude"}_key`)||"");
   const [load,setLoad]=useState(false);
@@ -232,12 +239,18 @@ function Conectar({onEntrar}) {
   };
 
   const real=async()=>{
-    if(!url||!tok){setErr("Preencha URL e Token");return;}
+    if(!instanceId||!tok){setErr("Preencha o Instance ID e o Token da Z-API");return;}
     salvarKey();
     setLoad(true);setErr("");
     try{
-      await proxy("test",url.trim(),tok.trim());
-      onEntrar("real",url.trim(),tok.trim());
+      const id=instanceId.trim(),t=tok.trim();
+      const st=await zapiGet(id,t,"status");
+      if(st?.value==="DISCONNECTED"||st?.connected===false){
+        throw new Error("WhatsApp desconectado — escaneie o QR Code no painel Z-API");
+      }
+      localStorage.setItem("zapi_instance",id);
+      localStorage.setItem("zapi_token",t);
+      onEntrar("real",id,t);
     }catch(e){setErr(String(e.message));setLoad(false);}
   };
 
@@ -387,21 +400,40 @@ function Conectar({onEntrar}) {
         <div style={{fontSize:10,color:sub,textAlign:"center",marginBottom:22,letterSpacing:".03em"}}>5 conversas · análise IA real · zero configuração</div>
 
         {/* divisor */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
           <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,transparent,${brd})`}}/>
-          <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".14em",flexShrink:0}}>ou conecte ao Waseller CRM</span>
+          <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+            <span style={{fontSize:12}}>📲</span>
+            <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".12em"}}>conecte seu WhatsApp via Z-API</span>
+          </div>
           <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,${brd},transparent)`}}/>
         </div>
 
-        {/* ── Waseller ─── */}
-        <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:10}}>
-          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://app.waseller.com.br/api" style={inp}/>
-          <input type="password" value={tok} onChange={e=>setTok(e.target.value)} onKeyDown={e=>e.key==="Enter"&&real()} placeholder="wsl_live_..." style={inp}/>
+        {/* ── Z-API ─── */}
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
+          <div>
+            <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Instance ID</div>
+            <input value={instanceId} onChange={e=>setInstanceId(e.target.value)}
+              placeholder="3F353000252CF1C7F7FBEA2E882AECCA"
+              style={{...inp,border:`1px solid ${instanceId?green+"40":brd}`,fontFamily:"monospace",fontSize:13}}/>
+          </div>
+          <div>
+            <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Token</div>
+            <input type="password" value={tok} onChange={e=>setTok(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&real()}
+              placeholder="8E69E627F75B5B819D096A02"
+              style={{...inp,border:`1px solid ${tok?green+"40":brd}`,fontFamily:"monospace",fontSize:13}}/>
+          </div>
         </div>
+
+        <div style={{fontSize:10,color:sub,lineHeight:1.6,marginBottom:10,padding:"8px 11px",background:s3,borderRadius:8}}>
+          💡 Encontre esses dados em <strong style={{color:gold}}>app.z-api.io</strong> → sua instância → <em>Credenciais</em>
+        </div>
+
         {err&&<div style={{padding:"9px 13px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:12,color:danger,marginBottom:10,lineHeight:1.5}}>⚠️ {err}</div>}
         <button onClick={real} disabled={load}
-          style={{width:"100%",padding:"12px",background:load?s3:`linear-gradient(135deg,${s2},#0f1e32)`,border:`1.5px solid ${load?brd:gold+"55"}`,borderRadius:11,color:load?sub:gold,fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s",boxShadow:load?"none":`0 4px 20px ${gold}0a`}}>
-          {load?<><Sp/>Verificando conexão...</>:"⚡ Conectar ao Waseller"}
+          style={{width:"100%",padding:"14px",background:load?s3:`linear-gradient(135deg,#075e54,#128c7e)`,border:`1.5px solid ${load?brd:"#25D36660"}`,borderRadius:11,color:load?sub:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s",boxShadow:load?"none":`0 4px 20px ${wa}18`}}>
+          {load?<><Sp c={wa}/>Verificando conexão...</>:<><span style={{fontSize:18}}>📲</span>Conectar WhatsApp</>}
         </button>
       </div>
     </div>
@@ -444,29 +476,50 @@ function Sinc({modo,url,tok,onPronto,onVoltar}) {
         return;
       }
 
-      setLabel("Conectando ao Waseller...");
+      setLabel("Conectando ao WhatsApp...");
       try{
-        const convs=await proxy("conversations",url,tok,{page:1,limit:50});
-        const arr=Array.isArray(convs)?convs:[];
-        if(!arr.length) throw new Error("Sem conversas retornadas pelo Waseller");
-        log(`✓ ${arr.length} conversas`,green);
-        setPct(50);setLabel("Carregando mensagens...");
+        // Z-API: buscar chats (instanceId = url, token = tok)
+        const chats=await zapiGet(url,tok,"chats",{page:1,pageSize:50});
+        const arr=Array.isArray(chats)?chats.filter(c=>!c.isGroup):[];
+        if(!arr.length) throw new Error("Nenhuma conversa encontrada no WhatsApp");
+        log(`✓ ${arr.length} conversas carregadas`,green);
+        setPct(40);setLabel("Carregando mensagens...");
 
         const result=[];
+        let loaded=0;
         for(const c of arr.slice(0,25)){
           if(!vivo) return;
           try{
-            const ms=await proxy("messages",url,tok,{conv_id:c.id,limit:30});
-            const mArr=Array.isArray(ms)?ms:[];
-            result.push({id:c.id,nome:c.contact_name||c.contact_phone,fone:c.contact_phone,
-              unread:c.unread_count||0,ult:c.last_message||"",hora:(c.last_message_at||"").slice(11,16)||"",
+            const msgs=await zapiGet(url,tok,`chat-messages/${encodeURIComponent(c.phone)}`);
+            const mArr=Array.isArray(msgs)?msgs:[];
+            const lastMsg=mArr.length>0?mArr[mArr.length-1]:null;
+            const tsToHora=(ts)=>{
+              if(!ts) return "";
+              try{return new Date(ts*1000).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}catch{return "";}
+            };
+            result.push({
+              id:c.phone,
+              nome:c.name||c.phone,
+              fone:c.phone,
+              unread:parseInt(c.unread||c.messagesUnread||0)||0,
+              ult:lastMsg?(lastMsg.textMessage||lastMsg.body||lastMsg.caption||"[mídia]"):(c.lastMessage||""),
+              hora:tsToHora(c.lastMessageTime||lastMsg?.momment),
               score:0,crm:{},status:"novo",
-              msgs:mArr.map(m=>({id:m.id,dir:m.direction==="inbound"?"in":"out",de:m.direction==="inbound"?(c.contact_name||"Cliente"):"Corretor",txt:m.text||"",h:(m.timestamp||"").slice(11,16)||""}))});
+              msgs:mArr.map(m=>({
+                id:m.messageId||m.id||String(m.momment||Date.now()),
+                dir:m.fromMe?"out":"in",
+                de:m.fromMe?"Corretor":(c.name||c.phone),
+                txt:m.textMessage||m.body||m.caption||"[mídia]",
+                h:tsToHora(m.momment)
+              })).filter(m=>m.txt!=="[mídia]"||true)
+            });
+            loaded++;
+            setPct(40+Math.round((loaded/Math.min(arr.length,25))*55));
           }catch{
-            result.push({id:c.id,nome:c.contact_name||c.contact_phone,fone:c.contact_phone,unread:c.unread_count||0,ult:c.last_message||"",hora:"",score:0,crm:{},status:"novo",msgs:[]});
+            result.push({id:c.phone,nome:c.name||c.phone,fone:c.phone,unread:parseInt(c.unread||0)||0,ult:"",hora:"",score:0,crm:{},status:"novo",msgs:[]});
           }
         }
-        log(`✓ Mensagens carregadas`,green);
+        log(`✓ ${result.length} conversas com mensagens`,green);
         setPct(100);setLabel("Pronto!");
         await new Promise(r=>setTimeout(r,300));
         if(!vivo||fez.current) return;
@@ -533,7 +586,7 @@ function Sinc({modo,url,tok,onPronto,onVoltar}) {
             <span style={{fontSize:34,fontWeight:900,background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-1.5px",lineHeight:1}}>.IA</span>
           </div>
           <div style={{fontSize:13,fontWeight:700,color:txt,marginBottom:2}}>{label}</div>
-          <div style={{fontSize:10,color:sub}}>{modo==="demo"?"Demonstração":"Waseller CRM"}</div>
+          <div style={{fontSize:10,color:sub}}>{modo==="demo"?"Demonstração":"WhatsApp via Z-API"}</div>
         </div>
         <div style={{height:6,background:brd,borderRadius:3,overflow:"hidden",marginBottom:14}}>
           <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${gold},${green})`,borderRadius:3,transition:"width .25s"}}/>
@@ -691,7 +744,7 @@ function Dashboard({modo,url,tok,convData}) {
     setTimeout(async()=>{
       if(modo==="real"&&url&&tok){
         const c=convs.find(x=>x.id===cid);
-        if(c?.fone) try{await proxy("send",url,tok,{phone:c.fone,message:m,chat_id:cid});}catch{}
+        if(c?.fone) try{await zapiPost(url,tok,"send-text",{phone:c.fone,message:m});}catch{}
       }
       const nova={id:Date.now()+"",dir:"out",de:"Corretor",txt:m,h:H(),ia:true};
       setMensagens(prev=>[...prev,nova]);
@@ -835,7 +888,7 @@ function Dashboard({modo,url,tok,convData}) {
               <div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.5px"}}>
                 <span style={{color:"#fff"}}>GO</span><span style={{background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>.IA</span>
               </div>
-              <div style={{fontSize:9,color:wa}}>● {modo==="demo"?"DEMO":"WASELLER"}</div>
+              <div style={{fontSize:9,color:wa}}>● {modo==="demo"?"DEMO":"Z-API LIVE"}</div>
             </div>
             <div style={{textAlign:"center"}}>
               <div style={{fontSize:13,fontWeight:700,color:green}}>{totalEnv}</div>
