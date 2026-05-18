@@ -622,6 +622,8 @@ function Dashboard({modo,url,tok,convData}) {
   const [busca,setBusca]=useState("");
   const [menuAberto,setMenuAberto]=useState(false);
   const [mobileTab,setMobileTab]=useState("lista");
+  const [configIA,setConfigIA]=useState(false);
+  const [novaKey,setNovaKey]=useState("");
   const endRef=useRef(null);
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[mensagens.length]);
@@ -642,6 +644,13 @@ function Dashboard({modo,url,tok,convData}) {
     const res=await chamarClaude(conv.nome,ms);
 
     if(res?.erro){
+      const isKeyErr=res.erro.includes("401")||res.erro.includes("403")||res.erro.includes("não configurada")||res.erro.includes("invalid");
+      if(isKeyErr){
+        const p=localStorage.getItem("ai_provider")||"claude";
+        localStorage.removeItem(`${p}_key`);
+        setNovaKey("");
+        setConfigIA(true);
+      }
       setErroIA(`Erro: ${res.erro}`);
       setAnalisando(false);
       return;
@@ -748,15 +757,65 @@ function Dashboard({modo,url,tok,convData}) {
     </div>
   );
 
+  const salvarNovaKey=()=>{
+    const k=novaKey.trim();
+    if(!k) return;
+    localStorage.setItem(`${aiProvider}_key`,k);
+    setConfigIA(false);
+    setErroIA("");
+    setNovaKey("");
+    if(sel) analisar(sel);
+  };
+
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100dvh",overflow:"hidden"}}>
 
-      {/* ── AVISO: sem chave de IA ────────────────────────────────── */}
-      {!aiKeyOk&&(
-        <div style={{padding:"7px 14px",background:`${warn}12`,borderBottom:`1px solid ${warn}30`,display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
-          <span style={{fontSize:14}}>⚠️</span>
-          <span style={{fontSize:11,color:warn,flex:1,lineHeight:1.5}}>Chave de IA ({PROVIDERS[aiProvider].name}) não configurada — configure na tela inicial para habilitar análise.</span>
+      {/* ── MODAL: configurar chave IA ─────────────────────────────── */}
+      {configIA&&(
+        <div onClick={e=>e.target===e.currentTarget&&setConfigIA(false)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div className="pop" style={{width:420,maxWidth:"95vw",background:s1,border:`1px solid ${gold}40`,borderRadius:18,padding:"26px 24px",boxShadow:"0 24px 64px rgba(0,0,0,.8)"}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:32,marginBottom:10}}>🔑</div>
+              <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:6}}>Configure sua chave de IA</div>
+              <div style={{fontSize:12,color:sub,lineHeight:1.6}}>A chave <strong style={{color:PROVIDERS[aiProvider].cor}}>{PROVIDERS[aiProvider].name}</strong> está inválida ou ausente.<br/>Cole sua chave abaixo para habilitar a análise.</div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".12em",marginBottom:7}}>Provedor selecionado: {PROVIDERS[aiProvider].name} {PROVIDERS[aiProvider].icon}</div>
+              <div style={{position:"relative"}}>
+                <input type="password" value={novaKey} onChange={e=>setNovaKey(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&salvarNovaKey()}
+                  placeholder={PROVIDERS[aiProvider].hint}
+                  autoFocus
+                  style={{width:"100%",background:s3,border:`1.5px solid ${novaKey?gold+"60":brd}`,borderRadius:10,padding:"12px 40px 12px 14px",color:txt,fontSize:15}}/>
+                {novaKey&&<span style={{position:"absolute",right:13,top:"50%",transform:"translateY(-50%)",color:green,fontSize:16,fontWeight:700}}>✓</span>}
+              </div>
+            </div>
+            <div style={{fontSize:10,color:sub,marginBottom:16,lineHeight:1.5,background:s3,borderRadius:8,padding:"9px 11px"}}>
+              💡 Sua chave é armazenada apenas localmente no navegador e nunca sai do dispositivo.
+            </div>
+            <div style={{display:"flex",gap:9}}>
+              <button onClick={salvarNovaKey} disabled={!novaKey.trim()}
+                style={{flex:2,padding:"13px",background:novaKey.trim()?`linear-gradient(135deg,${gold},#e0c040)`:"#1a2d47",border:"none",borderRadius:11,color:novaKey.trim()?"#000":sub,fontWeight:800,fontSize:14,transition:"all .2s"}}>
+                ✓ Salvar e analisar
+              </button>
+              <button onClick={()=>setConfigIA(false)}
+                style={{flex:1,padding:"13px",background:"transparent",border:`1px solid ${brd}`,borderRadius:11,color:sub,fontSize:13}}>
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* ── AVISO: sem chave de IA (clicável) ────────────────────── */}
+      {!aiKeyOk&&!configIA&&(
+        <button onClick={()=>{setNovaKey("");setConfigIA(true);}}
+          style={{padding:"7px 14px",background:`${warn}12`,borderBottom:`1px solid ${warn}30`,display:"flex",alignItems:"center",gap:9,flexShrink:0,border:"none",borderRadius:0,width:"100%",cursor:"pointer",textAlign:"left"}}>
+          <span style={{fontSize:14}}>⚠️</span>
+          <span style={{fontSize:11,color:warn,flex:1,lineHeight:1.5}}>Chave de IA ({PROVIDERS[aiProvider].name}) não configurada — toque aqui para configurar.</span>
+          <span style={{fontSize:11,color:gold,fontWeight:700,flexShrink:0}}>Configurar →</span>
+        </button>
       )}
 
       {/* ── CONTEÚDO ───────────────────────────────────────────────── */}
