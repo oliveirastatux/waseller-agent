@@ -9,7 +9,15 @@ const R=v=>v?`R$ ${Number(v).toLocaleString("pt-BR",{maximumFractionDigits:0})}`
 const H=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
-const CSS=`*{box-sizing:border-box;margin:0;padding:0}body{background:${bg};color:${txt};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${brd};border-radius:3px}input,textarea{outline:none}button{cursor:pointer}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes sl{from{opacity:0;transform:translateY(4px)}to{opacity:1}}@keyframes fadeup{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}.spin{animation:spin .6s linear infinite}.pop{animation:pop .2s ease both}.sl{animation:sl .18s ease both}.fadeup{animation:fadeup .45s cubic-bezier(.22,1,.36,1) both}.pulse{animation:pulse 2.5s ease infinite}`;
+const CSS=`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%;max-width:100%}body{background:${bg};color:${txt};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}#root{height:100%;height:100dvh}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${brd};border-radius:3px}input,textarea,select{outline:none;font-size:16px}button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes sl{from{opacity:0;transform:translateY(4px)}to{opacity:1}}@keyframes fadeup{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}.spin{animation:spin .6s linear infinite}.pop{animation:pop .2s ease both}.sl{animation:sl .18s ease both}.fadeup{animation:fadeup .45s cubic-bezier(.22,1,.36,1) both}.pulse{animation:pulse 2.5s ease infinite}`;
+
+// ── BREAKPOINT HOOK ──────────────────────────────────────────────────────────
+function useBreakpoint() {
+  const get=()=>{const w=typeof window!=="undefined"?window.innerWidth:1280;return w<640?"mobile":w<1024?"tablet":"desktop";};
+  const [bp,setBp]=useState(get);
+  useEffect(()=>{const h=()=>setBp(get());window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  return bp;
+}
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 const Sp=({n=13,c=gold})=><div className="spin" style={{width:n,height:n,border:`2px solid ${brd}`,borderTopColor:c,borderRadius:"50%",flexShrink:0}}/>;
@@ -396,7 +404,7 @@ function Sinc({modo,url,tok,onPronto}) {
 
   return(
     <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 80% 60% at 50% -5%, #0d1e3a 0%, ${bg} 65%)`}}>
-      <div className="pop" style={{width:420,background:"rgba(9,17,31,0.95)",border:`1px solid rgba(200,162,53,0.14)`,borderRadius:22,padding:30,boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
+      <div className="pop" style={{width:420,maxWidth:"92vw",background:"rgba(9,17,31,0.95)",border:`1px solid rgba(200,162,53,0.14)`,borderRadius:22,padding:"24px 20px",boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{display:"inline-flex",alignItems:"baseline",gap:1,marginBottom:10}}>
             <span style={{fontSize:34,fontWeight:900,color:"#fff",letterSpacing:"-2px",lineHeight:1}}>GO</span>
@@ -473,9 +481,14 @@ function MenuApps({ onFechar }) {
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function Dashboard({modo,url,tok,convData}) {
+  const bp=useBreakpoint();
+  const isMobile=bp==="mobile";
+  const isTablet=bp==="tablet";
+  const isDesktop=bp==="desktop";
+
   const [convs,setConvs]=useState(convData);
-  const [sel,setSel]=useState(convData[0]||null);
-  const [mensagens,setMensagens]=useState((convData[0]||{}).msgs||[]);
+  const [sel,setSel]=useState(null);
+  const [mensagens,setMensagens]=useState([]);
   const [sugs,setSugs]=useState([]);
   const [analisando,setAnalisando]=useState(false);
   const [erroIA,setErroIA]=useState("");
@@ -487,13 +500,15 @@ function Dashboard({modo,url,tok,convData}) {
   const [auto,setAuto]=useState(false);
   const [busca,setBusca]=useState("");
   const [menuAberto,setMenuAberto]=useState(false);
+  const [mobileTab,setMobileTab]=useState("lista");
   const endRef=useRef(null);
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[mensagens.length]);
 
   const selecionar=useCallback((c)=>{
     setSel(c);setMensagens(c.msgs||[]);setSugs([]);setErroIA("");setEstudo(null);setTabDir("sugestao");
-  },[]);
+    if(bp==="mobile") setMobileTab("chat");
+  },[bp]);
 
   const analisar=useCallback(async(convOpt)=>{
     const conv=convOpt||sel;
@@ -581,11 +596,43 @@ function Dashboard({modo,url,tok,convData}) {
   const COR={fechar:"#22c55e",quente:"#f97316",enviado:green,morno:warn,frio:info,novo:sub};
   const LAB={fechar:"💰 FECHAR",quente:"🔥 Quente",enviado:"✓ Enviado",morno:"⚡ Morno",frio:"❄️ Frio",novo:"● Novo"};
 
+  // ── helpers de painel ─────────────────────────────────────────────────────
+  const listaW = isMobile ? "100%" : isTablet ? 220 : 252;
+  const iaW    = 285;
+  const showLista = !isMobile || mobileTab==="lista";
+  const showChat  = !isMobile || mobileTab==="chat";
+  const showIA    = isDesktop  || (isMobile && mobileTab==="ia");
+
+  const EstudoPanel = ({compact=false})=>(
+    <div style={{display:"flex",flexDirection:"column",gap:compact?8:10}}>
+      {estudo.probabilidade_fechar&&(
+        <div style={{display:"flex",gap:8,padding:"10px 12px",background:estudo.probabilidade_fechar==="alta"?`${green}12`:estudo.probabilidade_fechar==="media"?`${warn}12`:`${info}10`,border:`1px solid ${estudo.probabilidade_fechar==="alta"?green:estudo.probabilidade_fechar==="media"?warn:info}30`,borderRadius:9}}>
+          <span style={{fontSize:18}}>{estudo.probabilidade_fechar==="alta"?"🔥":estudo.probabilidade_fechar==="media"?"⚡":"❄️"}</span>
+          <div><div style={{fontSize:10,fontWeight:700,color:estudo.probabilidade_fechar==="alta"?green:estudo.probabilidade_fechar==="media"?warn:info}}>PROBABILIDADE: {estudo.probabilidade_fechar?.toUpperCase()}</div>{estudo.tempo_estimado&&<div style={{fontSize:9,color:sub,marginTop:1}}>⏱ {estudo.tempo_estimado}</div>}</div>
+        </div>
+      )}
+      {estudo.perfil_comprador&&<div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}><div style={{fontSize:9,fontWeight:700,color:gold,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>👤 Quem é</div><div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.perfil_comprador}</div></div>}
+      {estudo.o_que_realmente_quer&&<div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}><div style={{fontSize:9,fontWeight:700,color:"#f97316",textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>🎯 O que quer</div><div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.o_que_realmente_quer}</div></div>}
+      {estudo.comportamento&&<div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}><div style={{fontSize:9,fontWeight:700,color:info,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>🧠 Como decide</div><div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.comportamento}</div></div>}
+      {estudo.como_abordar&&<div style={{background:`${gold}08`,border:`1px solid ${gold}30`,borderRadius:9,padding:"10px 12px"}}><div style={{fontSize:9,fontWeight:700,color:gold,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>💡 Como abordar</div><div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.como_abordar}</div></div>}
+      {Array.isArray(estudo.pontos_de_atencao)&&estudo.pontos_de_atencao.length>0&&(
+        <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}>
+          <div style={{fontSize:9,fontWeight:700,color:warn,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>⚠️ Atenção</div>
+          {estudo.pontos_de_atencao.map((p,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:3}}><span style={{color:warn,fontSize:10,flexShrink:0}}>•</span><span style={{fontSize:11,color:txt,lineHeight:1.6}}>{p}</span></div>)}
+        </div>
+      )}
+      {!compact&&<button onClick={()=>setTabDir("sugestao")} style={{padding:"9px",background:gold,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:12,width:"100%"}}>🤖 Ver mensagem sugerida →</button>}
+    </div>
+  );
+
   return(
-    <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100dvh",overflow:"hidden"}}>
+
+      {/* ── CONTEÚDO ───────────────────────────────────────────────── */}
+      <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
 
       {/* ── LISTA ──────────────────────────────────────────── */}
-      <div style={{width:252,flexShrink:0,borderRight:`1px solid ${brd}`,background:s1,display:"flex",flexDirection:"column"}}>
+      <div style={{display:showLista?"flex":"none",flexDirection:"column",width:listaW,flex:isMobile?"1 1 auto":"0 0 auto",borderRight:isMobile?"none":`1px solid ${brd}`,background:s1,overflow:"hidden"}}>
         {menuAberto && <MenuApps onFechar={()=>setMenuAberto(false)}/>}
 
         <div style={{padding:"10px 11px",borderBottom:`1px solid ${brd}`,background:s2}}>
@@ -620,10 +667,10 @@ function Dashboard({modo,url,tok,convData}) {
             <div style={{fontSize:9,fontWeight:700,color:auto?green:sub}}>Auto-Piloto {auto?"ON":"OFF"} · score≥70</div>
           </div>
           <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..."
-            style={{width:"100%",background:s3,border:`1px solid ${brd}`,borderRadius:7,padding:"5px 9px",color:txt,fontSize:11}}/>
+            style={{width:"100%",background:s3,border:`1px solid ${brd}`,borderRadius:7,padding:"5px 9px",color:txt,fontSize:13}}/>
         </div>
 
-        <div style={{flex:1,overflowY:"auto"}}>
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           {filtradas.map(c=>{
             const cor=COR[c.status]||sub;
             const lbl=LAB[c.status]||"● Novo";
@@ -657,23 +704,25 @@ function Dashboard({modo,url,tok,convData}) {
       </div>
 
       {/* ── CHAT ───────────────────────────────────────────── */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,borderRight:`1px solid ${brd}`}}>
+      <div style={{display:showChat?"flex":"none",flex:"1 1 auto",flexDirection:"column",minWidth:0,borderRight:(isMobile||isTablet)?"none":`1px solid ${brd}`}}>
         {sel?(
           <>
             <div style={{padding:"9px 13px",background:s1,borderBottom:`1px solid ${brd}`,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              {isMobile&&<button onClick={()=>setMobileTab("lista")} style={{width:32,height:32,borderRadius:8,background:s3,border:`1px solid ${brd}`,color:txt,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>}
               <Av v={(sel.nome||"?").split(" ").map(p=>p[0]).slice(0,2).join("")} n={29}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12,fontWeight:600,color:txt}}>{sel.nome}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.nome}</div>
                 <div style={{fontSize:9,color:wa}}>📱 {sel.fone}</div>
               </div>
-              {sel.crm?.tipo_imovel&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:20,color:info,background:`${info}15`,border:`1px solid ${info}30`}}>{sel.crm.tipo_imovel}</span>}
-              {sel.crm?.orcamento_max&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:20,color:gold,background:`${gold}15`,border:`1px solid ${gold}30`}}>{R(sel.crm.orcamento_max)}</span>}
-              {sel.score>0&&<span style={{fontSize:11,fontWeight:700,color:sc(sel.score)}}>{sel.score}</span>}
+              {!isMobile&&sel.crm?.tipo_imovel&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:20,color:info,background:`${info}15`,border:`1px solid ${info}30`,flexShrink:0}}>{sel.crm.tipo_imovel}</span>}
+              {!isMobile&&sel.crm?.orcamento_max&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:20,color:gold,background:`${gold}15`,border:`1px solid ${gold}30`,flexShrink:0}}>{R(sel.crm.orcamento_max)}</span>}
+              {sel.score>0&&<span style={{fontSize:11,fontWeight:700,color:sc(sel.score),flexShrink:0}}>{sel.score}</span>}
+              {isMobile&&<button onClick={()=>{analisar();setMobileTab("ia");}} style={{width:32,height:32,borderRadius:"50%",background:`${gold}20`,border:`1px solid ${gold}50`,color:gold,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🤖</button>}
             </div>
 
             {erroIA&&<div className="sl" style={{margin:"6px 12px 0",padding:"9px 12px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:8,fontSize:11,color:danger,lineHeight:1.5}}>⚠️ {erroIA}</div>}
 
-            <div style={{flex:1,overflowY:"auto",padding:"11px 12px",display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"11px 12px",display:"flex",flexDirection:"column",gap:8}}>
               {mensagens.map(m=>(
                 <div key={m.id} className="sl" style={{display:"flex",flexDirection:m.dir==="out"?"row-reverse":"row",gap:6,alignItems:"flex-end"}}>
                   {m.dir==="in"&&<div style={{width:19,height:19,borderRadius:"50%",background:"#1a3a60",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:gold,flexShrink:0}}>{(sel.nome||"?")[0]}</div>}
@@ -715,187 +764,162 @@ function Dashboard({modo,url,tok,convData}) {
                 style={{width:33,height:33,borderRadius:"50%",background:analisando?`${gold}10`:`${gold}20`,border:`1px solid ${gold}50`,color:gold,fontSize:15,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                 {analisando?<Sp n={11}/>:"🤖"}
               </button>
-              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&enviarManual()}
-                placeholder="Mensagem manual ou 🤖 para IA sugerir..."
-                style={{flex:1,background:s3,border:`1px solid ${brd}`,borderRadius:20,padding:"7px 12px",color:txt,fontSize:12}}/>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviarManual()}
+                placeholder="Mensagem manual ou 🤖 para IA..."
+                style={{flex:1,background:s3,border:`1px solid ${brd}`,borderRadius:20,padding:"7px 12px",color:txt,fontSize:16}}/>
               <button onClick={enviarManual} disabled={!input.trim()}
                 style={{width:33,height:33,borderRadius:"50%",background:input.trim()?wa:s3,border:"none",color:"#fff",fontSize:14,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>➤</button>
             </div>
           </>
         ):(
-          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:sub}}>
-            <div style={{textAlign:"center"}}><div style={{fontSize:34,marginBottom:8}}>💬</div><div>Selecione uma conversa</div></div>
+          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:sub,flexDirection:"column",gap:10}}>
+            <div style={{fontSize:34}}>💬</div>
+            <div style={{fontSize:13}}>Selecione uma conversa</div>
+            {isMobile&&<button onClick={()=>setMobileTab("lista")} style={{marginTop:8,padding:"9px 20px",background:gold,border:"none",borderRadius:9,color:"#000",fontWeight:700,fontSize:13}}>Ver contatos</button>}
           </div>
         )}
       </div>
 
-      {/* ── FILA IA ────────────────────────────────────────── */}
-      <div style={{width:285,flexShrink:0,display:"flex",flexDirection:"column",background:s1}}>
-        <div style={{borderBottom:`1px solid ${brd}`,background:s2}}>
-          <div style={{display:"flex",padding:"0 12px",gap:0}}>
-            {[["sugestao","🤖 Sugestão"],["estudo","🧠 Estudo"]].map(([id,lbl])=>(
-              <button key={id} onClick={()=>setTabDir(id)}
-                style={{padding:"9px 12px",border:"none",borderBottom:`2px solid ${tabDir===id?gold:"transparent"}`,background:"transparent",color:tabDir===id?gold:sub,fontSize:11,fontWeight:tabDir===id?700:400,cursor:"pointer"}}>
-                {lbl}{id==="sugestao"&&pendentes.length>0&&<span style={{marginLeft:4,background:gold,color:"#000",borderRadius:10,fontSize:8,padding:"0 5px",fontWeight:700}}>{pendentes.length}</span>}
-                {id==="estudo"&&estudo&&<span style={{marginLeft:4,background:`${green}30`,color:green,borderRadius:10,fontSize:8,padding:"0 5px",fontWeight:700}}>✓</span>}
-              </button>
-            ))}
-            {tabDir==="sugestao"&&pendentes.length>0&&(
-              <button onClick={aprovarTudo} style={{marginLeft:"auto",padding:"6px 8px",background:`${green}18`,border:`1px solid ${green}40`,borderRadius:6,color:green,fontSize:9,fontWeight:700,whiteSpace:"nowrap",alignSelf:"center"}}>
-                ✓ Tudo ({pendentes.length})
-              </button>
-            )}
-          </div>
+      {/* ── PAINEL IA ──────────────────────────────────────── */}
+      <div style={{display:showIA?"flex":"none",flexDirection:"column",width:isMobile?"100%":iaW,flex:isMobile?"1 1 auto":`0 0 ${iaW}px`,background:s1,overflow:"hidden"}}>
 
-          {sugs.length===0&&(
-            <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"14px",textAlign:"center"}}>
-              <div style={{fontSize:24,marginBottom:7}}>🤖</div>
-              <div style={{fontSize:11,fontWeight:600,color:txt,marginBottom:6}}>Como usar a IA:</div>
-              <div style={{fontSize:10,color:sub,lineHeight:1.7,textAlign:"left"}}>
-                1️⃣ Selecione uma conversa na lista<br/>
-                2️⃣ Clique no botão <strong style={{color:gold}}>🤖</strong> abaixo do chat<br/>
-                3️⃣ A IA analisa e cria uma mensagem<br/>
-                4️⃣ Aprove para enviar ou rejeite
-              </div>
-              {analisando&&(
-                <div style={{marginTop:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6,color:gold}}>
-                  <Sp n={12}/><span style={{fontSize:11,fontWeight:600}}>Analisando...</span>
-                </div>
-              )}
-              {!analisando&&sel&&(
-                <button onClick={()=>analisar()} style={{marginTop:11,width:"100%",padding:"9px",background:gold,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                  🤖 Analisar "{(sel.nome||"").split(" ")[0]}" agora
+        {/* header mobile do painel IA */}
+        {isMobile&&(
+          <div style={{padding:"10px 13px",borderBottom:`1px solid ${brd}`,background:s2,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            <button onClick={()=>setMobileTab(sel?"chat":"lista")} style={{width:32,height:32,borderRadius:8,background:s3,border:`1px solid ${brd}`,color:txt,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
+            <div style={{flex:1,fontSize:13,fontWeight:700,color:gold}}>🤖 Análise GO.IA</div>
+            {sel&&!analisando&&<button onClick={()=>analisar()} style={{padding:"6px 12px",background:gold,border:"none",borderRadius:7,color:"#000",fontWeight:700,fontSize:12}}>Analisar</button>}
+            {analisando&&<div style={{display:"flex",alignItems:"center",gap:5,color:gold}}><Sp n={11}/><span style={{fontSize:10}}>...</span></div>}
+          </div>
+        )}
+
+        {/* header desktop do painel IA */}
+        {!isMobile&&(
+          <div style={{borderBottom:`1px solid ${brd}`,background:s2,flexShrink:0}}>
+            <div style={{display:"flex",padding:"0 12px"}}>
+              {[["sugestao","🤖 Sugestão"],["estudo","🧠 Estudo"]].map(([id,lbl])=>(
+                <button key={id} onClick={()=>setTabDir(id)}
+                  style={{padding:"9px 12px",border:"none",borderBottom:`2px solid ${tabDir===id?gold:"transparent"}`,background:"transparent",color:tabDir===id?gold:sub,fontSize:11,fontWeight:tabDir===id?700:400,cursor:"pointer"}}>
+                  {lbl}{id==="sugestao"&&pendentes.length>0&&<span style={{marginLeft:4,background:gold,color:"#000",borderRadius:10,fontSize:8,padding:"0 5px",fontWeight:700}}>{pendentes.length}</span>}
+                  {id==="estudo"&&estudo&&<span style={{marginLeft:4,background:`${green}30`,color:green,borderRadius:10,fontSize:8,padding:"0 5px",fontWeight:700}}>✓</span>}
                 </button>
+              ))}
+              {tabDir==="sugestao"&&pendentes.length>0&&(
+                <button onClick={aprovarTudo} style={{marginLeft:"auto",padding:"6px 8px",background:`${green}18`,border:`1px solid ${green}40`,borderRadius:6,color:green,fontSize:9,fontWeight:700,whiteSpace:"nowrap",alignSelf:"center"}}>✓ Tudo ({pendentes.length})</button>
               )}
             </div>
-          )}
-        </div>
-
-        {/* ABA ESTUDO */}
-        {tabDir==="estudo"&&(
-          <div style={{flex:1,overflowY:"auto",padding:"12px 12px"}}>
-            {!estudo&&!analisando&&(
-              <div style={{textAlign:"center",padding:"30px 16px",color:sub}}>
-                <div style={{fontSize:32,marginBottom:10}}>🧠</div>
-                <div style={{fontSize:13,color:txt,marginBottom:6,fontWeight:600}}>Estudo do Cliente</div>
-                <div style={{fontSize:11,color:sub,lineHeight:1.7,marginBottom:14}}>
-                  Clique em <strong style={{color:gold}}>🤖</strong> no chat para a IA fazer uma análise profunda.
+            {sugs.length===0&&(
+              <div style={{padding:"10px 12px 12px"}}>
+                <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"12px",textAlign:"center"}}>
+                  <div style={{fontSize:22,marginBottom:6}}>🤖</div>
+                  <div style={{fontSize:10,fontWeight:600,color:txt,marginBottom:5}}>Como usar:</div>
+                  <div style={{fontSize:9,color:sub,lineHeight:1.7,textAlign:"left"}}>1️⃣ Selecione uma conversa<br/>2️⃣ Clique em <strong style={{color:gold}}>🤖</strong> no chat<br/>3️⃣ Aprove ou rejeite a sugestão</div>
+                  {analisando&&<div style={{marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:5,color:gold}}><Sp n={11}/><span style={{fontSize:10}}>Analisando...</span></div>}
+                  {!analisando&&sel&&<button onClick={()=>analisar()} style={{marginTop:9,width:"100%",padding:"8px",background:gold,border:"none",borderRadius:7,color:"#000",fontWeight:700,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>🤖 Analisar {(sel.nome||"").split(" ")[0]}</button>}
                 </div>
-                <button onClick={()=>analisar()} disabled={!sel}
-                  style={{padding:"9px 20px",background:gold,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:12,opacity:!sel?0.5:1}}>
-                  🧠 Gerar estudo agora
-                </button>
-              </div>
-            )}
-            {analisando&&(
-              <div style={{textAlign:"center",padding:"30px 16px"}}>
-                <div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Sp n={22} c={gold}/></div>
-                <div style={{fontSize:13,color:gold,fontWeight:600}}>GO.IA analisando...</div>
-                <div style={{fontSize:11,color:sub,marginTop:4}}>Gerando estudo completo do cliente</div>
-              </div>
-            )}
-            {estudo&&!analisando&&(
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {estudo.probabilidade_fechar&&(
-                  <div style={{display:"flex",gap:8,padding:"10px 12px",background:estudo.probabilidade_fechar==="alta"?`${green}12`:estudo.probabilidade_fechar==="media"?`${warn}12`:`${info}10`,border:`1px solid ${estudo.probabilidade_fechar==="alta"?green:estudo.probabilidade_fechar==="media"?warn:info}30`,borderRadius:9}}>
-                    <span style={{fontSize:18}}>{estudo.probabilidade_fechar==="alta"?"🔥":estudo.probabilidade_fechar==="media"?"⚡":"❄️"}</span>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:estudo.probabilidade_fechar==="alta"?green:estudo.probabilidade_fechar==="media"?warn:info}}>
-                        PROBABILIDADE DE FECHAR: {estudo.probabilidade_fechar?.toUpperCase()}
-                      </div>
-                      {estudo.tempo_estimado&&<div style={{fontSize:9,color:sub,marginTop:1}}>⏱ {estudo.tempo_estimado}</div>}
-                    </div>
-                  </div>
-                )}
-                {estudo.perfil_comprador&&(
-                  <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:gold,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>👤 Quem é esse cliente</div>
-                    <div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.perfil_comprador}</div>
-                  </div>
-                )}
-                {estudo.o_que_realmente_quer&&(
-                  <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:"#f97316",textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>🎯 O que realmente quer</div>
-                    <div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.o_que_realmente_quer}</div>
-                  </div>
-                )}
-                {estudo.comportamento&&(
-                  <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:info,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>🧠 Como decide</div>
-                    <div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.comportamento}</div>
-                  </div>
-                )}
-                {estudo.como_abordar&&(
-                  <div style={{background:`${gold}08`,border:`1px solid ${gold}30`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:gold,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>💡 Como abordar</div>
-                    <div style={{fontSize:11,color:txt,lineHeight:1.7}}>{estudo.como_abordar}</div>
-                  </div>
-                )}
-                {Array.isArray(estudo.pontos_de_atencao)&&estudo.pontos_de_atencao.length>0&&(
-                  <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:warn,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>⚠️ Pontos de atenção</div>
-                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                      {estudo.pontos_de_atencao.map((p,i)=>(
-                        <div key={i} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-                          <span style={{color:warn,fontSize:10,flexShrink:0}}>•</span>
-                          <span style={{fontSize:11,color:txt,lineHeight:1.6}}>{p}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <button onClick={()=>setTabDir("sugestao")}
-                  style={{padding:"9px",background:gold,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:12,width:"100%"}}>
-                  🤖 Ver mensagem sugerida →
-                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* ABA SUGESTÃO */}
-        {tabDir==="sugestao"&&<div style={{flex:1,overflowY:"auto",padding:"8px 10px"}}>
-          {sugs.map(s=>{
-            const pend=s.status==="pendente";
-            return(
-              <div key={s.id} className={pend?"pop":""} style={{background:s.status==="enviado"?`${green}08`:s.status==="rejeitado"?`${danger}05`:s2,border:`1px solid ${s.status==="enviado"?green+"25":s.status==="rejeitado"?danger+"18":brd}`,borderRadius:10,padding:"10px 11px",marginBottom:7,opacity:s.status==="rejeitado"?0.4:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-                  <Av v={(s.nome||"?").split(" ").map(p=>p[0]).slice(0,2).join("")} n={22}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:10,fontWeight:600,color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nome}</div>
-                    <div style={{fontSize:8,color:sub}}>🎯 {s.tecnica}</div>
-                  </div>
-                  {pend&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:20,color:s.prioridade==="alta"?danger:warn,fontWeight:700}}>⏳</span>}
-                  {s.status==="enviado"&&<span style={{fontSize:8,color:green,fontWeight:700}}>✓ Env.</span>}
-                  {s.fechamento&&<span style={{fontSize:8,color:green,fontWeight:700}}>💰</span>}
-                </div>
-                {s.motivo&&<div style={{fontSize:9,color:sub,fontStyle:"italic",marginBottom:5,lineHeight:1.4}}>💭 {s.motivo.slice(0,70)}{s.motivo.length>70?"...":""}</div>}
-                <div style={{fontSize:11,color:txt,background:s3,borderRadius:7,padding:"7px 9px",lineHeight:1.6,marginBottom:pend?7:0,borderLeft:`2px solid ${gold}`}}>
-                  {s.mensagem.slice(0,115)}{s.mensagem.length>115?"...":""}
-                </div>
-                {pend&&(
-                  <div style={{display:"flex",gap:5}}>
-                    <button onClick={()=>enviar(s.id,null,null)} disabled={enviando===s.id}
-                      style={{flex:2,padding:"5px",background:green,border:"none",borderRadius:6,color:"#000",fontWeight:700,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
-                      {enviando===s.id?<><Sp n={9} c="#000"/>...</>:"✓ Enviar"}
-                    </button>
-                    <button onClick={()=>rejeitar(s.id)} style={{flex:1,padding:"5px",background:"transparent",border:`1px solid ${brd}`,borderRadius:6,color:sub,fontSize:10}}>✗</button>
-                  </div>
-                )}
-                {s.status==="enviado"&&<div style={{fontSize:8,color:sub,textAlign:"right"}}>{s.h}</div>}
+        {/* conteúdo mobile: tudo junto (estudo + sugestões) */}
+        {isMobile&&(
+          <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"10px"}}>
+            {!sel&&<div style={{textAlign:"center",padding:"50px 16px",color:sub}}><div style={{fontSize:36,marginBottom:12}}>🤖</div><div style={{fontSize:13}}>Selecione uma conversa para analisar</div></div>}
+            {analisando&&<div style={{textAlign:"center",padding:"40px 16px"}}><div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Sp n={26} c={gold}/></div><div style={{fontSize:13,color:gold,fontWeight:600}}>GO.IA analisando...</div></div>}
+            {!analisando&&sel&&!estudo&&sugs.length===0&&(
+              <div style={{textAlign:"center",padding:"40px 16px"}}>
+                <div style={{fontSize:30,marginBottom:10}}>🤖</div>
+                <div style={{fontSize:13,color:txt,marginBottom:14,fontWeight:600}}>Toque em Analisar para gerar insights sobre {(sel.nome||"").split(" ")[0]}</div>
+                <button onClick={()=>analisar()} style={{padding:"11px 28px",background:gold,border:"none",borderRadius:10,color:"#000",fontWeight:700,fontSize:14}}>🤖 Analisar agora</button>
               </div>
-            );
-          })}
-        </div>}
+            )}
+            {estudo&&!analisando&&<div style={{marginBottom:12}}><EstudoPanel compact/></div>}
+            {sugs.filter(s=>s.status==="pendente"||s.status==="enviado").map(s=>{
+              const pend=s.status==="pendente";
+              return(
+                <div key={s.id} className={pend?"pop":""} style={{background:pend?`${gold}08`:s.status==="enviado"?`${green}08`:s2,border:`1px solid ${pend?gold+"35":s.status==="enviado"?green+"25":brd}`,borderRadius:10,padding:"10px 11px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                    <Av v={(s.nome||"?").split(" ").map(p=>p[0]).slice(0,2).join("")} n={22}/>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:10,fontWeight:600,color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nome}</div><div style={{fontSize:8,color:sub}}>🎯 {s.tecnica}</div></div>
+                    {s.status==="enviado"&&<span style={{fontSize:8,color:green,fontWeight:700}}>✓</span>}
+                    {s.fechamento&&<span style={{fontSize:8,color:green,fontWeight:700}}>💰</span>}
+                  </div>
+                  <div style={{fontSize:11,color:txt,background:s3,borderRadius:7,padding:"7px 9px",lineHeight:1.6,marginBottom:pend?7:0,borderLeft:`2px solid ${gold}`}}>{s.mensagem.slice(0,140)}{s.mensagem.length>140?"...":""}</div>
+                  {pend&&<div style={{display:"flex",gap:5}}>
+                    <button onClick={()=>enviar(s.id,null,null)} disabled={enviando===s.id} style={{flex:2,padding:"8px",background:green,border:"none",borderRadius:7,color:"#000",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>{enviando===s.id?<><Sp n={10} c="#000"/>...</>:"✓ Enviar"}</button>
+                    <button onClick={()=>rejeitar(s.id)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${brd}`,borderRadius:7,color:sub,fontSize:12}}>✗</button>
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-        <div style={{padding:"6px 12px",borderTop:`1px solid ${brd}`,background:s2}}>
+        {/* ABA ESTUDO desktop */}
+        {!isMobile&&tabDir==="estudo"&&(
+          <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px"}}>
+            {!estudo&&!analisando&&<div style={{textAlign:"center",padding:"30px 16px",color:sub}}><div style={{fontSize:32,marginBottom:10}}>🧠</div><div style={{fontSize:12,color:txt,marginBottom:14,fontWeight:600}}>Estudo do Cliente</div><button onClick={()=>analisar()} disabled={!sel} style={{padding:"9px 20px",background:gold,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:12,opacity:!sel?0.5:1}}>🧠 Gerar estudo</button></div>}
+            {analisando&&<div style={{textAlign:"center",padding:"30px 16px"}}><div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Sp n={22} c={gold}/></div><div style={{fontSize:13,color:gold,fontWeight:600}}>GO.IA analisando...</div><div style={{fontSize:11,color:sub,marginTop:4}}>Gerando estudo completo</div></div>}
+            {estudo&&!analisando&&<EstudoPanel/>}
+          </div>
+        )}
+
+        {/* ABA SUGESTÃO desktop */}
+        {!isMobile&&tabDir==="sugestao"&&(
+          <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"8px 10px"}}>
+            {sugs.map(s=>{
+              const pend=s.status==="pendente";
+              return(
+                <div key={s.id} className={pend?"pop":""} style={{background:s.status==="enviado"?`${green}08`:s.status==="rejeitado"?`${danger}05`:s2,border:`1px solid ${s.status==="enviado"?green+"25":s.status==="rejeitado"?danger+"18":brd}`,borderRadius:10,padding:"10px 11px",marginBottom:7,opacity:s.status==="rejeitado"?0.4:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                    <Av v={(s.nome||"?").split(" ").map(p=>p[0]).slice(0,2).join("")} n={22}/>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:10,fontWeight:600,color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nome}</div><div style={{fontSize:8,color:sub}}>🎯 {s.tecnica}</div></div>
+                    {pend&&<span style={{fontSize:8,color:s.prioridade==="alta"?danger:warn,fontWeight:700}}>⏳</span>}
+                    {s.status==="enviado"&&<span style={{fontSize:8,color:green,fontWeight:700}}>✓</span>}
+                    {s.fechamento&&<span style={{fontSize:8,color:green,fontWeight:700}}>💰</span>}
+                  </div>
+                  {s.motivo&&<div style={{fontSize:9,color:sub,fontStyle:"italic",marginBottom:5,lineHeight:1.4}}>💭 {s.motivo.slice(0,70)}{s.motivo.length>70?"...":""}</div>}
+                  <div style={{fontSize:11,color:txt,background:s3,borderRadius:7,padding:"7px 9px",lineHeight:1.6,marginBottom:pend?7:0,borderLeft:`2px solid ${gold}`}}>{s.mensagem.slice(0,115)}{s.mensagem.length>115?"...":""}</div>
+                  {pend&&<div style={{display:"flex",gap:5}}>
+                    <button onClick={()=>enviar(s.id,null,null)} disabled={enviando===s.id} style={{flex:2,padding:"5px",background:green,border:"none",borderRadius:6,color:"#000",fontWeight:700,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>{enviando===s.id?<><Sp n={9} c="#000"/>...</>:"✓ Enviar"}</button>
+                    <button onClick={()=>rejeitar(s.id)} style={{flex:1,padding:"5px",background:"transparent",border:`1px solid ${brd}`,borderRadius:6,color:sub,fontSize:10}}>✗</button>
+                  </div>}
+                  {s.status==="enviado"&&<div style={{fontSize:8,color:sub,textAlign:"right"}}>{s.h}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!isMobile&&<div style={{padding:"6px 12px",borderTop:`1px solid ${brd}`,background:s2,flexShrink:0}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5,textAlign:"center"}}>
             {[{l:"Pendentes",v:sugs.filter(s=>s.status==="pendente").length,c:warn},{l:"Enviadas",v:sugs.filter(s=>s.status==="enviado").length,c:green},{l:"Rejeitadas",v:sugs.filter(s=>s.status==="rejeitado").length,c:sub}].map((m,i)=>(
               <div key={i}><div style={{fontSize:12,fontWeight:700,color:m.c}}>{m.v}</div><div style={{fontSize:8,color:sub}}>{m.l}</div></div>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
+
+      </div>{/* fim CONTEÚDO */}
+
+      {/* ── BOTTOM TAB BAR (mobile only) ──────────────────── */}
+      {isMobile&&(
+        <div style={{display:"flex",borderTop:`1px solid ${brd}`,background:s2,flexShrink:0,height:56,zIndex:10,WebkitBackdropFilter:"blur(10px)"}}>
+          {[
+            {id:"lista",icon:"💬",label:"Contatos",badge:filtradas.filter(c=>c.unread>0).length},
+            {id:"chat", icon:"📱",label:"Chat",    badge:0},
+            {id:"ia",   icon:"🤖",label:"GO.IA",  badge:pendentes.length},
+          ].map(t=>(
+            <button key={t.id} onClick={()=>setMobileTab(t.id)}
+              style={{flex:1,border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,color:mobileTab===t.id?gold:sub,borderTop:`2px solid ${mobileTab===t.id?gold:"transparent"}`,position:"relative",transition:"color .15s",WebkitTapHighlightColor:"transparent"}}>
+              <span style={{fontSize:20,lineHeight:1}}>{t.icon}</span>
+              <span style={{fontSize:9,fontWeight:mobileTab===t.id?700:400,letterSpacing:".03em"}}>{t.label}</span>
+              {t.badge>0&&<div style={{position:"absolute",top:7,left:"50%",transform:"translateX(5px)",minWidth:16,height:16,borderRadius:8,background:danger,fontSize:9,fontWeight:700,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{t.badge>9?"9+":t.badge}</div>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
