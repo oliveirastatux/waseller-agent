@@ -185,7 +185,42 @@ async function chamarClaude(nomeContato, mensagens) {
   }
 }
 
-// ── Z-API ─────────────────────────────────────────────────────────────────────
+// ── EVOLUTION API ─────────────────────────────────────────────────────────────
+// URL do servidor próprio (configurável pelo admin do app)
+const EVO_URL = (typeof window !== "undefined" && window.__EVO_URL__) || "http://localhost:8080";
+const EVO_KEY = (typeof window !== "undefined" && window.__EVO_KEY__) || "goian-evo-k3y-s3cr3t-2025";
+
+async function evoGet(endpoint, params={}) {
+  const qs=Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join("&");
+  const url=`${EVO_URL}/${endpoint}${qs?"?"+qs:""}`;
+  const r=await fetch(url,{headers:{"Content-Type":"application/json","apikey":EVO_KEY}});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e?.message||e?.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+async function evoPost(endpoint, body={}) {
+  const r=await fetch(`${EVO_URL}/${endpoint}`,{
+    method:"POST",headers:{"Content-Type":"application/json","apikey":EVO_KEY},body:JSON.stringify(body)
+  });
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e?.message||e?.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+async function evoDel(endpoint) {
+  const r=await fetch(`${EVO_URL}/${endpoint}`,{method:"DELETE",headers:{"apikey":EVO_KEY}});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e?.message||e?.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+
+// Gera um nome de instância único por usuário (salvo em localStorage)
+function getInstancia() {
+  let id = localStorage.getItem("evo_instance");
+  if (!id) {
+    id = "goian_" + Math.random().toString(36).slice(2,10);
+    localStorage.setItem("evo_instance", id);
+  }
+  return id;
+}
+
+// ── Helpers Z-API (mantidos para retrocompatibilidade) ────────────────────────
 function zapiBase(instanceId, token) {
   return `https://api.z-api.io/instances/${instanceId}/token/${token}`;
 }
@@ -215,19 +250,18 @@ function Conectar({onEntrar}) {
     return()=>{try{document.head.removeChild(el)}catch{}};
   },[]);
 
-  const [instanceId,setInstanceId]=useState(()=>localStorage.getItem("zapi_instance")||"");
-  const [tok,setTok]=useState(()=>localStorage.getItem("zapi_token")||"");
   const [provider,setProvider]=useState(localStorage.getItem("ai_provider")||"claude");
   const [apiKey,setApiKey]=useState(()=>localStorage.getItem(`${localStorage.getItem("ai_provider")||"claude"}_key`)||"");
   const [load,setLoad]=useState(false);
   const [err,setErr]=useState("");
 
-  // ── QR Code flow ──────────────────────────────────────────────────
-  const [passo,setPasso]=useState("credenciais"); // "credenciais" | "qrcode"
+  // ── QR Code flow (Evolution API — sem credenciais do usuário) ──────
+  const [passo,setPasso]=useState("inicio"); // "inicio" | "qrcode" | "conectado"
   const [qrImg,setQrImg]=useState("");
   const [qrStatus,setQrStatus]=useState("Aguardando leitura...");
   const pollRef=useRef(null);
   const tentativas=useRef(0);
+  const instancia=useRef(getInstancia());
 
   useEffect(()=>()=>{clearInterval(pollRef.current);},[]);
 
@@ -237,82 +271,80 @@ function Conectar({onEntrar}) {
     localStorage.setItem("ai_provider",p);
   };
 
-  const salvarCredenciais=(id,t)=>{
+  const salvarIA=()=>{
     localStorage.setItem("ai_provider",provider);
     if(apiKey.trim()) localStorage.setItem(`${provider}_key`,apiKey.trim());
-    localStorage.setItem("zapi_instance",id);
-    localStorage.setItem("zapi_token",t);
   };
 
-  const entrarDemo=()=>{
-    localStorage.setItem("ai_provider",provider);
-    if(apiKey.trim()) localStorage.setItem(`${provider}_key`,apiKey.trim());
-    onEntrar("demo",null,null);
-  };
+  const entrarDemo=()=>{ salvarIA(); onEntrar("demo",null,null); };
 
-  const atualizarQR=async(id,t)=>{
+  const buscarQR=async()=>{
     try{
-      const qr=await zapiGet(id,t,"qr-code");
-      if(qr?.value) setQrImg(qr.value);
+      const d=await evoGet(`instance/connect/${instancia.current}`);
+      const img=d?.base64||d?.qrcode?.base64||d?.pairingCode||"";
+      if(img) setQrImg(img.startsWith("data:")?img:`data:image/png;base64,${img}`);
     }catch{}
   };
 
-  const iniciarPoll=(id,t)=>{
+  const iniciarPoll=()=>{
     clearInterval(pollRef.current);
     tentativas.current=0;
     pollRef.current=setInterval(async()=>{
       try{
-        const st=await zapiGet(id,t,"status");
-        if(st?.connected===true||st?.value==="CONNECTED"){
+        const st=await evoGet(`instance/connectionState/${instancia.current}`);
+        const estado=st?.instance?.state||st?.state||"";
+        if(estado==="open"||estado==="CONNECTED"){
           clearInterval(pollRef.current);
-          setQrStatus("✅ Conectado! Carregando conversas...");
-          salvarCredenciais(id,t);
-          setTimeout(()=>onEntrar("real",id,t),800);
+          setQrStatus("✅ Conectado! Entrando...");
+          setPasso("conectado");
+          salvarIA();
+          setTimeout(()=>onEntrar("real",instancia.current,"evo"),800);
         } else {
           tentativas.current++;
-          if(tentativas.current<=4) atualizarQR(id,t);
-          else setQrStatus("⏱ QR Code expirou — clique em Atualizar");
+          if(tentativas.current%3===0) buscarQR();
+          if(tentativas.current>15) setQrStatus("⏱ QR Code expirou — clique em Atualizar");
         }
       }catch{}
-    },12000);
+    },8000);
   };
 
   const conectarWhatsApp=async()=>{
-    const id=instanceId.trim(),t=tok.trim();
-    if(!id||!t){setErr("Preencha o Instance ID e o Token");return;}
     setLoad(true);setErr("");
     try{
-      // Verifica se já está conectado
-      const st=await zapiGet(id,t,"status");
-      if(st?.connected===true||st?.value==="CONNECTED"){
-        salvarCredenciais(id,t);
-        onEntrar("real",id,t);
-        return;
+      // Cria instância (ou reconecta se já existe)
+      try{
+        await evoPost(`instance/create`,{
+          instanceName: instancia.current,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS"
+        });
+      }catch(e){
+        // Se já existe, apenas reconecta
+        if(!String(e.message).includes("already")) throw e;
       }
-      // Busca o QR Code
-      const qr=await zapiGet(id,t,"qr-code");
-      if(!qr?.value) throw new Error("Não foi possível gerar o QR Code. Verifique Instance ID e Token.");
-      setQrImg(qr.value);
+      // Pega o QR Code
+      await buscarQR();
       setPasso("qrcode");
       setQrStatus("Aguardando leitura...");
-      iniciarPoll(id,t);
-    }catch(e){setErr(String(e.message));}
+      iniciarPoll();
+    }catch(e){
+      setErr(`Servidor offline. Suba o Docker primeiro.\n${e.message}`);
+    }
     setLoad(false);
   };
 
-  const voltarCredenciais=()=>{
-    clearInterval(pollRef.current);
-    setPasso("credenciais");
-    setQrImg("");
-    setErr("");
-  };
-
-  const atualizarQRManual=()=>{
-    const id=instanceId.trim(),t=tok.trim();
+  const atualizarQRManual=async()=>{
     tentativas.current=0;
     setQrStatus("Aguardando leitura...");
-    atualizarQR(id,t);
-    iniciarPoll(id,t);
+    await buscarQR();
+    iniciarPoll();
+  };
+
+  const voltarInicio=()=>{
+    clearInterval(pollRef.current);
+    setPasso("inicio");
+    setQrImg("");
+    setErr("");
   };
 
   const bp=useBreakpoint();
@@ -431,7 +463,7 @@ function Conectar({onEntrar}) {
           /* ══ PASSO 2: QR CODE ══════════════════════════════════════════ */
           <div className="fadeup">
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-              <button onClick={voltarCredenciais} style={{width:32,height:32,borderRadius:8,background:s3,border:`1px solid ${brd}`,color:sub,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+              <button onClick={voltarInicio} style={{width:32,height:32,borderRadius:8,background:s3,border:`1px solid ${brd}`,color:sub,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:txt}}>Escaneie o QR Code</div>
                 <div style={{fontSize:10,color:sub}}>Abra o WhatsApp → Dispositivos conectados → Conectar</div>
@@ -508,35 +540,21 @@ function Conectar({onEntrar}) {
             <div style={{fontSize:10,color:sub,textAlign:"center",marginBottom:18,letterSpacing:".03em"}}>5 conversas · análise IA real · zero configuração</div>
 
             {/* divisor */}
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
               <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,transparent,${brd})`}}/>
-              <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".12em",flexShrink:0}}>ou conecte seu WhatsApp</span>
+              <span style={{fontSize:9,color:sub,textTransform:"uppercase",letterSpacing:".12em",flexShrink:0}}>ou conecte seu WhatsApp real</span>
               <div style={{flex:1,height:"1px",background:`linear-gradient(90deg,${brd},transparent)`}}/>
             </div>
 
-            {/* ── Z-API credenciais ─── */}
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
-              <div>
-                <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Instance ID <span style={{color:`${sub}60`,fontWeight:400,textTransform:"none"}}>(Z-API)</span></div>
-                <input value={instanceId} onChange={e=>setInstanceId(e.target.value)}
-                  placeholder="3F353000252CF1C7F7FBEA2E..."
-                  style={{...inp,border:`1px solid ${instanceId?green+"40":brd}`,fontFamily:"monospace",fontSize:12}}/>
-              </div>
-              <div>
-                <div style={{fontSize:9,color:sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",marginBottom:5}}>Token <span style={{color:`${sub}60`,fontWeight:400,textTransform:"none"}}>(Z-API)</span></div>
-                <input type="password" value={tok} onChange={e=>setTok(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&conectarWhatsApp()}
-                  placeholder="8E69E627F75B5B819D096A02"
-                  style={{...inp,border:`1px solid ${tok?green+"40":brd}`,fontFamily:"monospace",fontSize:12}}/>
-              </div>
-            </div>
-
-            {err&&<div style={{padding:"9px 13px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:12,color:danger,marginBottom:10,lineHeight:1.5}}>⚠️ {err}</div>}
+            {err&&<div style={{padding:"9px 13px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:12,color:danger,marginBottom:10,lineHeight:1.5,whiteSpace:"pre-line"}}>⚠️ {err}</div>}
 
             <button onClick={conectarWhatsApp} disabled={load}
-              style={{width:"100%",padding:"14px",background:load?s3:`linear-gradient(135deg,#075e54,#128c7e)`,border:`1.5px solid ${load?brd:wa+"60"}`,borderRadius:11,color:load?sub:"#fff",fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s",boxShadow:load?"none":`0 4px 20px ${wa}18`}}>
-              {load?<><Sp c={wa}/>Verificando...</>:<><span style={{fontSize:18}}>📲</span>Conectar e ver QR Code</>}
+              style={{width:"100%",padding:"16px",background:load?s3:`linear-gradient(135deg,#075e54,#128c7e)`,border:`1.5px solid ${load?brd:wa+"60"}`,borderRadius:13,color:load?sub:"#fff",fontWeight:800,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,transition:"all .2s",boxShadow:load?"none":`0 8px 32px ${wa}28`}}>
+              {load?<><Sp c={wa}/>Conectando...</>:<><span style={{fontSize:22}}>📲</span>Conectar WhatsApp</>}
             </button>
+            <div style={{fontSize:10,color:sub,textAlign:"center",marginTop:8,lineHeight:1.5}}>
+              QR Code aparece aqui · Escaneie com seu celular · Zero configuração
+            </div>
           </>
         )}
       </div>
@@ -580,52 +598,56 @@ function Sinc({modo,url,tok,onPronto,onVoltar}) {
         return;
       }
 
-      setLabel("Conectando ao WhatsApp...");
+      setLabel("Carregando conversas...");
       try{
-        // Z-API: buscar chats (instanceId = url, token = tok)
-        const chats=await zapiGet(url,tok,"chats",{page:1,pageSize:50});
-        const arr=Array.isArray(chats)?chats.filter(c=>!c.isGroup):[];
-        if(!arr.length) throw new Error("Nenhuma conversa encontrada no WhatsApp");
-        log(`✓ ${arr.length} conversas carregadas`,green);
-        setPct(40);setLabel("Carregando mensagens...");
+        // Evolution API: buscar chats da instância
+        const instancia=url; // url = nome da instância, tok = "evo"
+        const tsToHora=(ts)=>{
+          if(!ts) return "";
+          try{const d=new Date(typeof ts==="number"&&ts<9999999999?ts*1000:ts);return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}catch{return "";}
+        };
+
+        const chatsData=await evoGet(`chat/findChats/${instancia}`);
+        const arr=Array.isArray(chatsData)?chatsData.filter(c=>!c.id?.includes("@g.us")).slice(0,30):[];
+        if(!arr.length) throw new Error("Nenhuma conversa encontrada. Certifique-se de que o WhatsApp está conectado.");
+        log(`✓ ${arr.length} conversas`,green);
+        setPct(35);setLabel("Carregando mensagens...");
 
         const result=[];
         let loaded=0;
-        for(const c of arr.slice(0,25)){
+        for(const c of arr){
           if(!vivo) return;
+          const phone=(c.id||"").replace("@s.whatsapp.net","").replace("@c.us","");
           try{
-            const msgs=await zapiGet(url,tok,`chat-messages/${encodeURIComponent(c.phone)}`);
-            const mArr=Array.isArray(msgs)?msgs:[];
+            const msgData=await evoGet(`chat/findMessages/${instancia}`,{where:`{"key":{"remoteJid":"${c.id}"}}`,"limit":30});
+            const mArr=Array.isArray(msgData?.messages?.records)?msgData.messages.records:
+                       Array.isArray(msgData)?msgData:[];
             const lastMsg=mArr.length>0?mArr[mArr.length-1]:null;
-            const tsToHora=(ts)=>{
-              if(!ts) return "";
-              try{return new Date(ts*1000).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}catch{return "";}
-            };
             result.push({
-              id:c.phone,
-              nome:c.name||c.phone,
-              fone:c.phone,
-              unread:parseInt(c.unread||c.messagesUnread||0)||0,
-              ult:lastMsg?(lastMsg.textMessage||lastMsg.body||lastMsg.caption||"[mídia]"):(c.lastMessage||""),
-              hora:tsToHora(c.lastMessageTime||lastMsg?.momment),
+              id:phone,
+              nome:c.name||c.pushName||phone,
+              fone:phone,
+              unread:c.unreadCount||0,
+              ult:lastMsg?.message?.conversation||lastMsg?.message?.extendedTextMessage?.text||c.lastMessage?.message?.conversation||"",
+              hora:tsToHora(lastMsg?.messageTimestamp||c.lastMessage?.messageTimestamp),
               score:0,crm:{},status:"novo",
               msgs:mArr.map(m=>({
-                id:m.messageId||m.id||String(m.momment||Date.now()),
-                dir:m.fromMe?"out":"in",
-                de:m.fromMe?"Corretor":(c.name||c.phone),
-                txt:m.textMessage||m.body||m.caption||"[mídia]",
-                h:tsToHora(m.momment)
-              })).filter(m=>m.txt!=="[mídia]"||true)
+                id:m.key?.id||String(Date.now()),
+                dir:m.key?.fromMe?"out":"in",
+                de:m.key?.fromMe?"Corretor":(c.name||c.pushName||phone),
+                txt:m.message?.conversation||m.message?.extendedTextMessage?.text||"[mídia]",
+                h:tsToHora(m.messageTimestamp)
+              })).filter(m=>m.txt&&m.txt!=="[mídia]")
             });
-            loaded++;
-            setPct(40+Math.round((loaded/Math.min(arr.length,25))*55));
           }catch{
-            result.push({id:c.phone,nome:c.name||c.phone,fone:c.phone,unread:parseInt(c.unread||0)||0,ult:"",hora:"",score:0,crm:{},status:"novo",msgs:[]});
+            result.push({id:phone,nome:c.name||c.pushName||phone,fone:phone,unread:c.unreadCount||0,ult:"",hora:"",score:0,crm:{},status:"novo",msgs:[]});
           }
+          loaded++;
+          setPct(35+Math.round((loaded/arr.length)*60));
         }
-        log(`✓ ${result.length} conversas com mensagens`,green);
+        log(`✓ ${result.length} conversas prontas`,green);
         setPct(100);setLabel("Pronto!");
-        await new Promise(r=>setTimeout(r,300));
+        await new Promise(r=>setTimeout(r,400));
         if(!vivo||fez.current) return;
         fez.current=true;
         onPronto(result.length>0?result:DEMO);
@@ -633,7 +655,7 @@ function Sinc({modo,url,tok,onPronto,onVoltar}) {
       }catch(e){
         if(!vivo) return;
         log(`❌ ${e.message}`,danger);
-        setErroConexao(e.message||"Falha na conexão com o Waseller");
+        setErroConexao(e.message||"Falha ao carregar conversas");
         setLabel("Falha na conexão");
       }
     })();
@@ -846,9 +868,11 @@ function Dashboard({modo,url,tok,convData}) {
     if(!cid||!m) return;
     setEnviando(id);
     setTimeout(async()=>{
-      if(modo==="real"&&url&&tok){
+      if(modo==="real"&&url){
         const c=convs.find(x=>x.id===cid);
-        if(c?.fone) try{await zapiPost(url,tok,"send-text",{phone:c.fone,message:m});}catch{}
+        if(c?.fone) try{
+          await evoPost(`message/sendText/${url}`,{number:c.fone,text:m});
+        }catch{}
       }
       const nova={id:Date.now()+"",dir:"out",de:"Corretor",txt:m,h:H(),ia:true};
       setMensagens(prev=>[...prev,nova]);
@@ -992,7 +1016,7 @@ function Dashboard({modo,url,tok,convData}) {
               <div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.5px"}}>
                 <span style={{color:"#fff"}}>GO</span><span style={{background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>.IA</span>
               </div>
-              <div style={{fontSize:9,color:wa}}>● {modo==="demo"?"DEMO":"Z-API LIVE"}</div>
+              <div style={{fontSize:9,color:wa}}>● {modo==="demo"?"DEMO":"WhatsApp LIVE"}</div>
             </div>
             <div style={{textAlign:"center"}}>
               <div style={{fontSize:13,fontWeight:700,color:green}}>{totalEnv}</div>
