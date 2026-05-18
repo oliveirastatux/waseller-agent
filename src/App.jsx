@@ -260,59 +260,59 @@ function Conectar({onEntrar}) {
           PAINEL HERO — visível apenas em tablet/desktop
       ══════════════════════════════════════════════════════ */}
       {!isMobile&&(
-        <div className="fadeup" style={{flex:"1 1 0",position:"relative",display:"flex",flexDirection:"column",justifyContent:"center",padding:"56px 64px",overflow:"hidden",background:"linear-gradient(145deg,#04090f 0%,#070f1c 40%,#050c17 100%)"}}>
+        <div className="fadeup" style={{flex:"1 1 0",position:"relative",display:"flex",flexDirection:"column",justifyContent:"flex-start",padding:"44px 56px",overflowY:"auto",WebkitOverflowScrolling:"touch",background:"linear-gradient(145deg,#04090f 0%,#070f1c 40%,#050c17 100%)"}}>
 
           {/* grade de fundo */}
           <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(${gold}07 1px,transparent 1px),linear-gradient(90deg,${gold}07 1px,transparent 1px)`,backgroundSize:"44px 44px",zIndex:0,pointerEvents:"none"}}/>
 
           {/* orbs */}
-          <div className="pulse" style={{position:"absolute",width:520,height:520,borderRadius:"50%",background:`radial-gradient(circle,${gold}0f,transparent 65%)`,top:"-20%",right:"-10%",zIndex:0,pointerEvents:"none"}}/>
-          <div className="pulse" style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:"radial-gradient(circle,#6366f112,transparent 65%)",bottom:"-15%",left:"-8%",zIndex:0,pointerEvents:"none",animationDelay:"1.2s"}}/>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(90deg,transparent 70%,#09111f 100%)",zIndex:1,pointerEvents:"none"}}/>
+          <div className="pulse" style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:`radial-gradient(circle,${gold}0e,transparent 65%)`,top:"-15%",right:"-8%",zIndex:0,pointerEvents:"none"}}/>
+          <div className="pulse" style={{position:"absolute",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,#6366f110,transparent 65%)",bottom:"-12%",left:"-6%",zIndex:0,pointerEvents:"none",animationDelay:"1.2s"}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(90deg,transparent 65%,#09111f 100%)",zIndex:1,pointerEvents:"none"}}/>
 
-          <div style={{position:"relative",zIndex:2}}>
+          <div style={{position:"relative",zIndex:2,display:"flex",flexDirection:"column",minHeight:"100%",justifyContent:"center"}}>
 
             {/* logo hero */}
-            <div style={{marginBottom:52}}>
-              <div style={{display:"inline-flex",alignItems:"baseline",gap:2,marginBottom:10,userSelect:"none"}}>
-                <span style={{fontSize:72,fontWeight:900,color:"#fff",letterSpacing:"-5px",lineHeight:1}}>GO</span>
-                <span style={{fontSize:72,fontWeight:900,background:`linear-gradient(130deg,${gold} 20%,#f7e07a 80%)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-3px",lineHeight:1}}>.IA</span>
+            <div style={{marginBottom:32}}>
+              <div style={{display:"inline-flex",alignItems:"baseline",gap:2,marginBottom:8,userSelect:"none"}}>
+                <span style={{fontSize:"clamp(48px,6vw,72px)",fontWeight:900,color:"#fff",letterSpacing:"-4px",lineHeight:1}}>GO</span>
+                <span style={{fontSize:"clamp(48px,6vw,72px)",fontWeight:900,background:`linear-gradient(130deg,${gold} 20%,#f7e07a 80%)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-2.5px",lineHeight:1}}>.IA</span>
               </div>
-              <div style={{fontSize:10,color:`${sub}80`,letterSpacing:".28em",textTransform:"uppercase"}}>Sales Intelligence Platform</div>
+              <div style={{fontSize:10,color:`${sub}80`,letterSpacing:".26em",textTransform:"uppercase"}}>Sales Intelligence Platform</div>
             </div>
 
             {/* headline */}
-            <div style={{marginBottom:52}}>
-              <h1 style={{fontSize:36,fontWeight:800,color:"#fff",lineHeight:1.18,marginBottom:18,letterSpacing:"-0.8px"}}>
+            <div style={{marginBottom:32}}>
+              <h1 style={{fontSize:"clamp(24px,3vw,36px)",fontWeight:800,color:"#fff",lineHeight:1.2,marginBottom:14,letterSpacing:"-0.6px"}}>
                 Feche mais negócios<br/>
                 <span style={{background:`linear-gradient(130deg,${gold},#f5d860)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>com Inteligência Artificial</span>
               </h1>
-              <p style={{fontSize:15,color:sub,lineHeight:1.75,maxWidth:440}}>
+              <p style={{fontSize:14,color:sub,lineHeight:1.7,maxWidth:420}}>
                 Analise conversas do WhatsApp em tempo real, gere respostas personalizadas e acompanhe cada lead com precisão cirúrgica.
               </p>
             </div>
 
             {/* features */}
-            <div style={{display:"flex",flexDirection:"column",gap:20,marginBottom:56}}>
+            <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:32}}>
               {FEATURES.map((f,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"flex-start",gap:16}}>
-                  <div style={{width:44,height:44,borderRadius:13,background:`linear-gradient(135deg,${gold}18,${gold}08)`,border:`1px solid ${gold}28`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,boxShadow:`0 4px 16px ${gold}10`}}>
+                <div key={i} style={{display:"flex",alignItems:"center",gap:14}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg,${gold}18,${gold}08)`,border:`1px solid ${gold}28`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
                     {f.icon}
                   </div>
-                  <div style={{paddingTop:2}}>
-                    <div style={{fontSize:14,fontWeight:700,color:txt,marginBottom:3}}>{f.title}</div>
-                    <div style={{fontSize:12,color:sub,lineHeight:1.55}}>{f.desc}</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:txt,marginBottom:2}}>{f.title}</div>
+                    <div style={{fontSize:11,color:sub,lineHeight:1.5}}>{f.desc}</div>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* stats */}
-            <div style={{display:"flex",gap:36,paddingTop:28,borderTop:`1px solid ${brd}`}}>
+            <div style={{display:"flex",gap:28,paddingTop:20,borderTop:`1px solid ${brd}`}}>
               {[{n:"4",l:"Provedores de IA"},{n:"100%",l:"Via API direta"},{n:"∞",l:"Conversas"}].map((s,i)=>(
                 <div key={i}>
-                  <div style={{fontSize:26,fontWeight:900,color:gold,letterSpacing:"-1px",lineHeight:1}}>{s.n}</div>
-                  <div style={{fontSize:10,color:sub,marginTop:3,letterSpacing:".06em"}}>{s.l}</div>
+                  <div style={{fontSize:22,fontWeight:900,color:gold,letterSpacing:"-0.5px",lineHeight:1}}>{s.n}</div>
+                  <div style={{fontSize:9,color:sub,marginTop:3,letterSpacing:".05em"}}>{s.l}</div>
                 </div>
               ))}
             </div>
