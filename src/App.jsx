@@ -411,11 +411,11 @@ function Conectar({onEntrar}) {
 // ═══════════════════════════════════════════════════════════════════
 // TELA SYNC
 // ═══════════════════════════════════════════════════════════════════
-function Sinc({modo,url,tok,onPronto}) {
+function Sinc({modo,url,tok,onPronto,onVoltar}) {
   const [pct,setPct]=useState(0);
   const [label,setLabel]=useState("Iniciando...");
   const [linhas,setLinhas]=useState([]);
-  const [aviso,setAviso]=useState("");
+  const [erroConexao,setErroConexao]=useState("");
   const fez=useRef(false);
   const log=(m,c=sub)=>setLinhas(p=>[...p,{m,c}].slice(-8));
 
@@ -434,7 +434,7 @@ function Sinc({modo,url,tok,onPronto}) {
           setPct(p);
           if(p===25){setLabel("Carregando conversas...");log("✓ 5 conversas",green);}
           if(p===55){setLabel("Carregando mensagens...");log("✓ 20 mensagens",green);}
-          if(p===80){setLabel("Preparando IA...");log("✓ Claude AI pronto",gold);}
+          if(p===80){setLabel("Preparando IA...");log("✓ IA pronta",gold);}
           if(p===100) setLabel("Pronto!");
         }
         await new Promise(r=>setTimeout(r,300));
@@ -448,7 +448,7 @@ function Sinc({modo,url,tok,onPronto}) {
       try{
         const convs=await proxy("conversations",url,tok,{page:1,limit:50});
         const arr=Array.isArray(convs)?convs:[];
-        if(!arr.length) throw new Error("Sem conversas");
+        if(!arr.length) throw new Error("Sem conversas retornadas pelo Waseller");
         log(`✓ ${arr.length} conversas`,green);
         setPct(50);setLabel("Carregando mensagens...");
 
@@ -474,21 +474,58 @@ function Sinc({modo,url,tok,onPronto}) {
         onPronto(result.length>0?result:DEMO);
 
       }catch(e){
+        if(!vivo) return;
         log(`❌ ${e.message}`,danger);
-        setAviso("Erro ao conectar — usando demonstração.");
-        for(let p=0;p<=100;p+=20){await new Promise(r=>setTimeout(r,100));setPct(p);}
-        setLabel("Usando demonstração");
-        await new Promise(r=>setTimeout(r,500));
-        if(!vivo||fez.current) return;
-        fez.current=true;
-        onPronto(DEMO);
+        setErroConexao(e.message||"Falha na conexão com o Waseller");
+        setLabel("Falha na conexão");
       }
     })();
     return()=>{vivo=false;};
   },[]);// eslint-disable-line
 
+  // ── Tela de erro de conexão ───────────────────────────────────────
+  if(erroConexao){
+    return(
+      <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 80% 60% at 50% -5%, #1a0808 0%, ${bg} 65%)`}}>
+        <div className="pop" style={{width:440,maxWidth:"92vw",background:"rgba(9,17,31,0.97)",border:`1px solid ${danger}30`,borderRadius:22,padding:"32px 28px",boxShadow:"0 32px 80px rgba(0,0,0,.8)"}}>
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{width:60,height:60,borderRadius:"50%",background:`${danger}15`,border:`2px solid ${danger}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 16px"}}>❌</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:8}}>Falha ao conectar ao Waseller</div>
+            <div style={{fontSize:12,color:sub,lineHeight:1.6}}>Verifique suas credenciais e tente novamente.</div>
+          </div>
+
+          <div style={{background:"#1a0808",border:`1px solid ${danger}40`,borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+            <div style={{fontSize:9,fontWeight:700,color:danger,textTransform:"uppercase",letterSpacing:".1em",marginBottom:6}}>Detalhe do erro</div>
+            <div style={{fontSize:12,color:"#fca5a5",fontFamily:"monospace",lineHeight:1.6,wordBreak:"break-all"}}>{erroConexao}</div>
+          </div>
+
+          <div style={{background:s3,border:`1px solid ${brd}`,borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+            <div style={{fontSize:10,fontWeight:700,color:gold,marginBottom:8}}>Possíveis causas:</div>
+            {["URL incorreta (verifique https:// e sem barra no final)","Token inválido ou expirado","Waseller fora do ar ou bloqueando requisições","Problema de CORS — tente novamente"].map((t,i)=>(
+              <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",marginBottom:5}}>
+                <span style={{color:warn,fontSize:9,flexShrink:0,marginTop:1}}>•</span>
+                <span style={{fontSize:11,color:txt,lineHeight:1.5}}>{t}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            <button onClick={onVoltar}
+              style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,${gold}22,${gold}12)`,border:`1.5px solid ${gold}60`,borderRadius:12,color:gold,fontWeight:800,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:9}}>
+              ← Corrigir credenciais
+            </button>
+            <button onClick={()=>{fez.current=false;onPronto(DEMO);}}
+              style={{width:"100%",padding:"12px",background:"transparent",border:`1px solid ${brd}`,borderRadius:12,color:sub,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:9}}>
+              📱 Entrar com demonstração
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return(
-    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 80% 60% at 50% -5%, #0d1e3a 0%, ${bg} 65%)`}}>
+    <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 80% 60% at 50% -5%, #0d1e3a 0%, ${bg} 65%)`}}>
       <div className="pop" style={{width:420,maxWidth:"92vw",background:"rgba(9,17,31,0.95)",border:`1px solid rgba(200,162,53,0.14)`,borderRadius:22,padding:"24px 20px",boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{display:"inline-flex",alignItems:"baseline",gap:1,marginBottom:10}}>
@@ -501,7 +538,6 @@ function Sinc({modo,url,tok,onPronto}) {
         <div style={{height:6,background:brd,borderRadius:3,overflow:"hidden",marginBottom:14}}>
           <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${gold},${green})`,borderRadius:3,transition:"width .25s"}}/>
         </div>
-        {aviso&&<div style={{padding:"8px 11px",background:`${warn}10`,border:`1px solid ${warn}30`,borderRadius:8,fontSize:11,color:warn,marginBottom:10}}>⚠️ {aviso}</div>}
         <div style={{background:bg,border:`1px solid ${brd}`,borderRadius:8,padding:"9px 11px",minHeight:70,fontFamily:"monospace"}}>
           {linhas.map((l,i)=><div key={i} style={{fontSize:10,color:l.c,marginBottom:2}}>{l.m}</div>)}
           {pct<100&&<div style={{display:"flex",gap:5,alignItems:"center",marginTop:3}}><Sp n={9}/><span style={{fontSize:9,color:sub}}>processando...</span></div>}
@@ -669,6 +705,8 @@ function Dashboard({modo,url,tok,convData}) {
   };
 
   const pendentes=sugs.filter(s=>s.status==="pendente");
+  const aiProvider=localStorage.getItem("ai_provider")||"claude";
+  const aiKeyOk=!!(localStorage.getItem(`${aiProvider}_key`)||"").trim();
   const filtradas=[...convs]
     .filter(c=>!busca||(c.nome||"").toLowerCase().includes(busca.toLowerCase()))
     .sort((a,b)=>{
@@ -712,6 +750,14 @@ function Dashboard({modo,url,tok,convData}) {
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100dvh",overflow:"hidden"}}>
+
+      {/* ── AVISO: sem chave de IA ────────────────────────────────── */}
+      {!aiKeyOk&&(
+        <div style={{padding:"7px 14px",background:`${warn}12`,borderBottom:`1px solid ${warn}30`,display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
+          <span style={{fontSize:14}}>⚠️</span>
+          <span style={{fontSize:11,color:warn,flex:1,lineHeight:1.5}}>Chave de IA ({PROVIDERS[aiProvider].name}) não configurada — configure na tela inicial para habilitar análise.</span>
+        </div>
+      )}
 
       {/* ── CONTEÚDO ───────────────────────────────────────────────── */}
       <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",minHeight:0}}>
@@ -1022,6 +1068,10 @@ export default function App() {
     setTela("sinc");
   },[]);
 
+  const onVoltar=useCallback(()=>{
+    setTela("conectar");
+  },[]);
+
   const onPronto=useCallback((dados)=>{
     const final=Array.isArray(dados)&&dados.length>0?dados:DEMO;
     setConvData(final);
@@ -1031,7 +1081,7 @@ export default function App() {
   return(
     <>
       {tela==="conectar" &&<Conectar onEntrar={onEntrar}/>}
-      {tela==="sinc"     &&<Sinc modo={cfg.modo} url={cfg.url} tok={cfg.tok} onPronto={onPronto}/>}
+      {tela==="sinc"     &&<Sinc modo={cfg.modo} url={cfg.url} tok={cfg.tok} onPronto={onPronto} onVoltar={onVoltar}/>}
       {tela==="dashboard"&&<Dashboard modo={cfg.modo} url={cfg.url} tok={cfg.tok} convData={convData.length>0?convData:DEMO}/>}
     </>
   );
