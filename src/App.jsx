@@ -9,7 +9,7 @@ const R=v=>v?`R$ ${Number(v).toLocaleString("pt-BR",{maximumFractionDigits:0})}`
 const H=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
-const CSS=`*{box-sizing:border-box;margin:0;padding:0}body{background:${bg};color:${txt};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${brd};border-radius:3px}input,textarea{outline:none}button{cursor:pointer}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes sl{from{opacity:0;transform:translateY(4px)}to{opacity:1}}.spin{animation:spin .6s linear infinite}.pop{animation:pop .2s ease both}.sl{animation:sl .18s ease both}`;
+const CSS=`*{box-sizing:border-box;margin:0;padding:0}body{background:${bg};color:${txt};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${brd};border-radius:3px}input,textarea{outline:none}button{cursor:pointer}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes sl{from{opacity:0;transform:translateY(4px)}to{opacity:1}}@keyframes fadeup{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}.spin{animation:spin .6s linear infinite}.pop{animation:pop .2s ease both}.sl{animation:sl .18s ease both}.fadeup{animation:fadeup .45s cubic-bezier(.22,1,.36,1) both}.pulse{animation:pulse 2.5s ease infinite}`;
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 const Sp=({n=13,c=gold})=><div className="spin" style={{width:n,height:n,border:`2px solid ${brd}`,borderTopColor:c,borderRadius:"50%",flexShrink:0}}/>;
@@ -233,66 +233,81 @@ function Conectar({onEntrar}) {
     }catch(e){setErr(String(e.message));setLoad(false);}
   };
 
-  const inp={width:"100%",background:s3,border:`1px solid ${brd}`,borderRadius:8,padding:"9px 12px",color:txt,fontSize:13};
+  const inp={width:"100%",background:s3,border:`1px solid ${brd}`,borderRadius:10,padding:"10px 13px",color:txt,fontSize:13,transition:"border-color .2s"};
   const pInfo=PROVIDERS[provider];
 
   return(
-    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:bg}}>
-      <div className="pop" style={{width:430,background:s1,border:`1px solid ${brd}`,borderRadius:20,overflow:"hidden",boxShadow:"0 24px 60px rgba(0,0,0,.6)"}}>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 100% 80% at 50% -5%, #0d1e3a 0%, ${bg} 70%)`,position:"relative",overflow:"hidden",padding:"24px 16px"}}>
 
-        <div style={{background:"linear-gradient(135deg,#0a1628,#0c1c30)",padding:"26px 30px 20px",textAlign:"center",borderBottom:`1px solid ${brd}`}}>
-          <div style={{width:54,height:54,borderRadius:13,background:`linear-gradient(135deg,${gold},#e0c040)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:25,margin:"0 auto 11px"}}>🏢</div>
-          <div style={{fontSize:17,fontWeight:700,color:gold}}>WASELLER AI AGENT</div>
-          <div style={{fontSize:11,color:sub,marginTop:3}}>WhatsApp · IA · Vendas Imobiliárias</div>
+      {/* blobs decorativos */}
+      <div className="pulse" style={{position:"absolute",width:600,height:600,borderRadius:"60% 40% 55% 45%/50% 60% 40% 60%",background:`radial-gradient(circle at 40% 40%, ${gold}0a, transparent 65%)`,top:"-20%",left:"-15%",pointerEvents:"none",zIndex:0}}/>
+      <div className="pulse" style={{position:"absolute",width:400,height:400,borderRadius:"40% 60% 45% 55%/60% 40% 60% 40%",background:"radial-gradient(circle at 60% 60%, #6366f10b, transparent 65%)",bottom:"-10%",right:"-8%",pointerEvents:"none",zIndex:0,animationDelay:".8s"}}/>
+
+      <div className="fadeup" style={{width:440,maxWidth:"96vw",position:"relative",zIndex:1,background:"rgba(9,17,31,0.93)",border:`1px solid rgba(200,162,53,0.14)`,borderRadius:26,overflow:"hidden",boxShadow:"0 40px 100px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.03), inset 0 1px 0 rgba(255,255,255,.04)"}}>
+
+        {/* ── Logo ──────────────────────────────────────── */}
+        <div style={{padding:"32px 32px 22px",textAlign:"center",borderBottom:`1px solid rgba(255,255,255,.05)`,background:"linear-gradient(180deg,rgba(13,30,56,.8) 0%, transparent 100%)"}}>
+          <div style={{display:"inline-flex",alignItems:"baseline",gap:1,marginBottom:11,userSelect:"none"}}>
+            <span style={{fontSize:52,fontWeight:900,color:"#fff",letterSpacing:"-4px",lineHeight:1,fontFamily:"system-ui,-apple-system"}}>GO</span>
+            <span style={{fontSize:52,fontWeight:900,background:`linear-gradient(135deg,${gold} 30%,#f7e07a 100%)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-2px",lineHeight:1,fontFamily:"system-ui,-apple-system"}}>.IA</span>
+          </div>
+          <div style={{fontSize:10,color:sub,letterSpacing:".2em",textTransform:"uppercase"}}>Sales Intelligence · WhatsApp · Imóveis</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginTop:11}}>
+            <div style={{height:"1px",width:36,background:`linear-gradient(90deg,transparent,${brd})`}}/>
+            <span style={{fontSize:9,color:`${sub}70`,letterSpacing:".08em"}}>usando</span>
+            <span style={{fontSize:9,fontWeight:700,color:pInfo.cor,letterSpacing:".04em"}}>{pInfo.icon} {pInfo.name}</span>
+            <div style={{height:"1px",width:36,background:`linear-gradient(90deg,${brd},transparent)`}}/>
+          </div>
         </div>
 
-        {/* Seletor de provedor de IA */}
-        <div style={{padding:"14px 28px 12px",borderBottom:`1px solid ${brd}`,background:`${pInfo.cor}08`}}>
-          <div style={{fontSize:10,color:sub,marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Provedor de IA</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+        {/* ── Provedor ──────────────────────────────────── */}
+        <div style={{padding:"20px 26px 16px",borderBottom:`1px solid ${brd}`,background:`${pInfo.cor}07`}}>
+          <div style={{fontSize:9,color:sub,marginBottom:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em",textAlign:"center"}}>Escolha seu provedor de IA</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
             {Object.entries(PROVIDERS).map(([id,p])=>(
               <button key={id} onClick={()=>trocarProvider(id)}
-                style={{padding:"8px 4px",borderRadius:9,border:`1px solid ${provider===id?p.cor:brd}`,background:provider===id?`${p.cor}18`:s3,color:provider===id?p.cor:sub,fontSize:11,fontWeight:provider===id?700:400,display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .15s"}}>
-                <span style={{fontSize:16}}>{p.icon}</span>
+                style={{padding:"11px 4px 9px",borderRadius:13,border:`1.5px solid ${provider===id?p.cor+"90":brd}`,background:provider===id?`${p.cor}1c`:s3,color:provider===id?p.cor:sub,fontSize:9,fontWeight:provider===id?700:400,display:"flex",flexDirection:"column",alignItems:"center",gap:5,transition:"all .18s",boxShadow:provider===id?`0 0 16px ${p.cor}18`:"none",letterSpacing:".03em"}}>
+                <span style={{fontSize:20,lineHeight:1}}>{p.icon}</span>
                 <span>{p.name}</span>
               </button>
             ))}
           </div>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={e=>setApiKey(e.target.value)}
-            placeholder={pInfo.hint}
-            style={{...inp,border:`1px solid ${apiKey?"#22c55e40":pInfo.cor+"40"}`,fontSize:12}}
-          />
-          {apiKey
-            ? <div style={{fontSize:9,color:green,marginTop:4}}>✓ Chave {pInfo.name} salva — pronta para usar</div>
-            : <div style={{fontSize:9,color:warn,marginTop:4}}>⚠️ Cole sua chave {pInfo.name} para habilitar a análise IA</div>
-          }
+
+          <div style={{position:"relative"}}>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e=>setApiKey(e.target.value)}
+              placeholder={pInfo.hint}
+              style={{...inp,border:`1.5px solid ${apiKey?green+"55":pInfo.cor+"40"}`,paddingRight:38}}
+            />
+            {apiKey&&<span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:green,fontSize:15,pointerEvents:"none",fontWeight:700}}>✓</span>}
+          </div>
+          <div style={{fontSize:9,marginTop:6,textAlign:"center",color:apiKey?green:warn,letterSpacing:".02em"}}>
+            {apiKey?`✓ Chave ${pInfo.name} salva — pronta para usar`:`Cole sua chave ${pInfo.name} para habilitar a análise IA`}
+          </div>
         </div>
 
-        <div style={{padding:"18px 28px 14px",borderBottom:`1px solid ${brd}`}}>
+        {/* ── Demo ──────────────────────────────────────── */}
+        <div style={{padding:"18px 26px 14px",borderBottom:`1px solid ${brd}`}}>
           <button onClick={entrarDemo}
-            style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,${wa},#18a852)`,border:"none",borderRadius:12,color:"#fff",fontWeight:700,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:`0 4px 20px ${wa}44`}}>
+            style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,#1db954,${wa},#18a852)`,backgroundSize:"200% 200%",border:"none",borderRadius:14,color:"#fff",fontWeight:800,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:9,boxShadow:`0 6px 28px ${wa}30`,letterSpacing:".02em"}}>
             <span style={{fontSize:20}}>📱</span>Entrar com demonstração
           </button>
-          <div style={{fontSize:10,color:sub,textAlign:"center",marginTop:6}}>5 conversas · Claude AI real · zero configuração</div>
+          <div style={{fontSize:9,color:sub,textAlign:"center",marginTop:7,letterSpacing:".04em"}}>5 conversas · análise IA real · zero configuração</div>
         </div>
 
-        <div style={{padding:"16px 28px 22px"}}>
-          <div style={{fontSize:10,color:sub,textAlign:"center",marginBottom:13,textTransform:"uppercase",letterSpacing:".1em"}}>— ou conecte seu Waseller real —</div>
-          <div style={{marginBottom:9}}>
-            <label style={{fontSize:10,color:sub,display:"block",marginBottom:4}}>🔗 URL da API</label>
+        {/* ── Waseller real ─────────────────────────────── */}
+        <div style={{padding:"14px 26px 22px"}}>
+          <div style={{fontSize:9,color:sub,textAlign:"center",marginBottom:12,textTransform:"uppercase",letterSpacing:".14em"}}>— ou conecte ao Waseller CRM —</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
             <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://app.waseller.com.br/api" style={inp}/>
-          </div>
-          <div style={{marginBottom:13}}>
-            <label style={{fontSize:10,color:sub,display:"block",marginBottom:4}}>🔑 Token de acesso</label>
             <input type="password" value={tok} onChange={e=>setTok(e.target.value)} onKeyDown={e=>e.key==="Enter"&&real()} placeholder="wsl_live_..." style={inp}/>
           </div>
-          {err&&<div style={{padding:"9px 12px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:8,fontSize:11,color:danger,marginBottom:10,lineHeight:1.5}}>{err}</div>}
+          {err&&<div style={{padding:"9px 12px",background:"#2a0808",border:"1px solid #5c1010",borderRadius:9,fontSize:11,color:danger,marginBottom:10,lineHeight:1.5}}>⚠️ {err}</div>}
           <button onClick={real} disabled={load}
-            style={{width:"100%",padding:"11px",background:load?s3:s2,border:`1px solid ${load?brd:gold}`,borderRadius:9,color:load?sub:gold,fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            {load?<><Sp/>Testando...</>:"⚡ Conectar ao Waseller"}
+            style={{width:"100%",padding:"12px",background:load?s3:s2,border:`1.5px solid ${load?brd:gold+"55"}`,borderRadius:11,color:load?sub:gold,fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s"}}>
+            {load?<><Sp/>Verificando...</>:"⚡ Conectar ao Waseller"}
           </button>
         </div>
       </div>
@@ -380,12 +395,15 @@ function Sinc({modo,url,tok,onPronto}) {
   },[]);// eslint-disable-line
 
   return(
-    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:bg}}>
-      <div className="pop" style={{width:420,background:s1,border:`1px solid ${brd}`,borderRadius:20,padding:26}}>
-        <div style={{textAlign:"center",marginBottom:18}}>
-          <div style={{fontSize:pct<100?"26px":"34px",marginBottom:7}}>{pct<100?"⚙️":"✅"}</div>
-          <div style={{fontSize:13,fontWeight:700,color:txt}}>{label}</div>
-          <div style={{fontSize:10,color:sub,marginTop:2}}>{modo==="demo"?"Demonstração":"Waseller CRM"}</div>
+    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse 80% 60% at 50% -5%, #0d1e3a 0%, ${bg} 65%)`}}>
+      <div className="pop" style={{width:420,background:"rgba(9,17,31,0.95)",border:`1px solid rgba(200,162,53,0.14)`,borderRadius:22,padding:30,boxShadow:"0 32px 80px rgba(0,0,0,.7)"}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{display:"inline-flex",alignItems:"baseline",gap:1,marginBottom:10}}>
+            <span style={{fontSize:34,fontWeight:900,color:"#fff",letterSpacing:"-2px",lineHeight:1}}>GO</span>
+            <span style={{fontSize:34,fontWeight:900,background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-1.5px",lineHeight:1}}>.IA</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:txt,marginBottom:2}}>{label}</div>
+          <div style={{fontSize:10,color:sub}}>{modo==="demo"?"Demonstração":"Waseller CRM"}</div>
         </div>
         <div style={{height:6,background:brd,borderRadius:3,overflow:"hidden",marginBottom:14}}>
           <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${gold},${green})`,borderRadius:3,transition:"width .25s"}}/>
@@ -426,7 +444,9 @@ function MenuApps({ onFechar }) {
       <div className="pop" style={{ background:"#09111f", border:"1px solid #1a2d47", borderRadius:16, padding:16, width:320, boxShadow:"0 20px 60px rgba(0,0,0,.7)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
           <div>
-            <div style={{ fontSize:13, fontWeight:700, color:"#ccd8ee" }}>🏢 Waseller AI Copilot</div>
+            <div style={{ fontSize:15, fontWeight:900, letterSpacing:"-0.5px" }}>
+              <span style={{color:"#fff"}}>GO</span><span style={{background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>.IA</span>
+            </div>
             <div style={{ fontSize:10, color:"#5a7899", marginTop:1 }}>Navegar para outro módulo</div>
           </div>
           <button onClick={onFechar} style={{ width:26, height:26, borderRadius:8, background:"#121f33", border:"1px solid #1a2d47", color:"#5a7899", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -575,7 +595,9 @@ function Dashboard({modo,url,tok,convData}) {
               {menuAberto?"✕":"⊞"}
             </button>
             <div style={{flex:1}}>
-              <div style={{fontSize:11,fontWeight:700,color:gold}}>AI AGENT</div>
+              <div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.5px"}}>
+                <span style={{color:"#fff"}}>GO</span><span style={{background:`linear-gradient(135deg,${gold},#f0d060)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>.IA</span>
+              </div>
               <div style={{fontSize:9,color:wa}}>● {modo==="demo"?"DEMO":"WASELLER"}</div>
             </div>
             <div style={{textAlign:"center"}}>
@@ -663,7 +685,7 @@ function Dashboard({modo,url,tok,convData}) {
                   </div>
                 </div>
               ))}
-              {analisando&&<div style={{display:"flex",gap:6,padding:"8px 11px",background:s3,borderRadius:"3px 12px 12px 12px",width:"fit-content",alignItems:"center"}}><Sp n={10}/><span style={{fontSize:10,color:sub}}>Claude AI analisando...</span></div>}
+              {analisando&&<div style={{display:"flex",gap:6,padding:"8px 11px",background:s3,borderRadius:"3px 12px 12px 12px",width:"fit-content",alignItems:"center"}}><Sp n={10}/><span style={{fontSize:10,color:sub}}>GO.IA analisando...</span></div>}
               <div ref={endRef}/>
             </div>
 
@@ -768,7 +790,7 @@ function Dashboard({modo,url,tok,convData}) {
             {analisando&&(
               <div style={{textAlign:"center",padding:"30px 16px"}}>
                 <div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Sp n={22} c={gold}/></div>
-                <div style={{fontSize:13,color:gold,fontWeight:600}}>Claude AI analisando...</div>
+                <div style={{fontSize:13,color:gold,fontWeight:600}}>GO.IA analisando...</div>
                 <div style={{fontSize:11,color:sub,marginTop:4}}>Gerando estudo completo do cliente</div>
               </div>
             )}
